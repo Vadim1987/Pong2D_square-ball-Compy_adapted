@@ -7,11 +7,11 @@ gfx = love.graphics
 
 -- runtime configuration
 
-USE_FIXED         = true
-FIXED_DT          = 1 / 60
-MAX_STEPS         = 5
-SPEED_SCALE       = 2.5
-MOUSE_SENSITIVITY = 1.0
+USE_FIXED = true
+FIXED_DT = 1 / 60
+MAX_STEPS = 5
+SPEED_SCALE = 2.5
+MOUSE_SENSITIVITY = 1
 
 -- runtime variables
 
@@ -70,8 +70,8 @@ function cache_dims()
   paddle_h = math.floor(PADDLE_HEIGHT * scale + 0.5)
   ball_size = math.floor(BALL_SIZE * scale + 0.5)
   paddle_max_y = screen_h - paddle_h
-  ball_max_y   = screen_h - ball_size
-  center_x     = math.floor(screen_w / 2 + 0.5)
+  ball_max_y = screen_h - ball_size
+  center_x = math.floor(screen_w / 2 + 0.5)
 end
 
 function layout()
@@ -81,7 +81,7 @@ function layout()
   S.player.y = (screen_h - S.player.h) / 2
   S.opp.w = paddle_w
   S.opp.h = paddle_h
-  S.opp.x = screen_w - PADDLE_OFFSET_X - S.opp.w
+  S.opp.x = (screen_w - PADDLE_OFFSET_X) - S.opp.w
   S.opp.y = (screen_h - S.opp.h) / 2
   S.ball.size = ball_size
   S.ball.x = (screen_w - S.ball.size) / 2
@@ -101,7 +101,9 @@ function draw_center_line()
 end
 
 function build_center_canvas()
-  if CENTER_CANVAS then CENTER_CANVAS:release() end
+  if CENTER_CANVAS then
+    CENTER_CANVAS:release()
+  end
   CENTER_CANVAS = gfx.newCanvas(screen_w, screen_h)
   gfx.setCanvas(CENTER_CANVAS)
   gfx.clear(0, 0, 0, 0)
@@ -119,8 +121,12 @@ function build_static_texts()
 end
 
 function rebuild_score_texts()
-  if TXT_L then TXT_L:release() end
-  if TXT_R then TXT_R:release() end
+  if TXT_L then
+    TXT_L:release()
+  end
+  if TXT_R then
+    TXT_R:release()
+  end
   TXT_L = gfx.newText(FONT, tostring(S.playerScore))
   TXT_R = gfx.newText(FONT, tostring(S.oppScore))
 end
@@ -163,12 +169,16 @@ function move_ball(b, dt)
   if b.y < 0 then
     b.y = 0
     b.dy = -b.dy
-  elseif b.y + b.size > screen_h then
+  elseif screen_h < b.y + b.size then
     b.y = screen_h - b.size
     b.dy = -b.dy
   end
-  if b.x + b.size > screen_w then return scored("plr") end
-  if b.x < 0 then return scored("opp") end
+  if screen_w < b.x + b.size then
+    return scored("plr")
+  end
+  if b.x < 0 then
+    return scored("opp")
+  end
 end
 
 function bounce_ball(b)
@@ -192,9 +202,9 @@ end
 
 function collide(b, p, off)
   local hx1 = b.x < p.x + p.w
-  local hx2 = b.x + b.size > p.x
+  local hx2 = p.x < b.x + b.size
   local hy1 = b.y < p.y + p.h
-  local hy2 = b.y + b.size > p.y
+  local hy2 = p.y < b.y + b.size
   if hx1 and hx2 and hy1 and hy2 then
     b.x = p.x + off
     b.dx = -b.dx
@@ -219,14 +229,13 @@ end
 function check_score()
   local b = S.ball
   -- Ball left the screen on the right side: player scores
-  if b.x + b.size > screen_w then
+  if screen_w < b.x + b.size then
     return scored("plr")
   end
   -- Ball left the screen on the left side: opponent scores
   if b.x < 0 then
     return scored("opp")
   end
-
   return false
 end
 
@@ -260,17 +269,19 @@ end
 
 function update_player(dt)
   local dir = 0
-  if love.keyboard.isDown("q") then dir = -1
-  elseif love.keyboard.isDown("a") then dir = 1 end
+  if love.keyboard.isDown("q") then
+    dir = -1
+  elseif love.keyboard.isDown("a") then
+    dir = 1
+  end
   move_paddle(S.player, dir, dt)
 end
 
 function love.mousemoved(x, y, dx, dy, t)
-  if not mouse_enabled
-      or t
-      or S.state ~= "play"
+  if not mouse_enabled or t
+       or S.state ~= "play"
   then
-    return
+    return 
   end
   local p = S.player
   p.y = p.y + dy * MOUSE_SENSITIVITY
@@ -301,7 +312,7 @@ end
 function update_fixed(rdt)
   acc = acc + rdt
   local steps = 0
-  while acc >= FIXED_DT and steps < MAX_STEPS do
+  while FIXED_DT <= acc and steps < MAX_STEPS do
     step_game(FIXED_DT)
     acc = acc - FIXED_DT
     steps = steps + 1
@@ -313,8 +324,11 @@ function love.update(dt)
   local now = love.timer.getTime()
   local rdt = now - time_t
   time_t = now
-  if USE_FIXED then update_fixed(rdt)
-  else step_game(rdt) end
+  if USE_FIXED then
+    update_fixed(rdt)
+  else
+    step_game(rdt)
+  end
 end
 
 -- drawing
@@ -340,9 +354,11 @@ end
 function draw_state_text()
   if S.state == "start" then
     gfx.draw(TXT_START, screen_w / 2 - 40, screen_h / 2 - 16)
-  elseif S.state == "gameover" then
+  
+      elseif S.state == "gameover" then
     gfx.draw(TXT_OVER, screen_w / 2 - 40, screen_h / 2 - 16)
-  end
+  
+      end
 end
 
 function love.draw()
