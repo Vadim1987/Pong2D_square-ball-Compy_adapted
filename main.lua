@@ -163,22 +163,29 @@ function move_paddle(p, dir, dt)
   clamp_paddle(p)
 end
 
-function move_ball(b, dt)
-  b.x = b.x + b.dx * dt
-  b.y = b.y + b.dy * dt
-  if b.y < 0 then
-    b.y = 0
-    b.dy = -b.dy
-  elseif screen_h < b.y + b.size then
-    b.y = screen_h - b.size
-    b.dy = -b.dy
+function check_scored(bx)
+  local bs = S.ball.size
+  if bx < 0 then
+    return "opp"
   end
-  if screen_w < b.x + b.size then
-    return scored("plr")
+  if screen_w < bx + bs then
+    return "plr"
   end
-  if b.x < 0 then
-    return scored("opp")
+  return nil
+end
+
+function move_ball(b,dt)
+  b.x=b.x+b.dx*dt
+  b.y=b.y+b.dy*dt
+  if b.y<0 then
+    b.y=0
+    b.dy=-b.dy
   end
+  if screen_h<b.y+b.size then
+    b.y=screen_h-b.size
+    b.dy=-b.dy
+  end
+  return check_scored(b.x)
 end
 
 function bounce_ball(b)
@@ -219,22 +226,10 @@ function scored(side)
     S.playerScore = S.playerScore + 1
   end
   rebuild_score_texts()
-  if WIN_SCORE <= S.playerScore or WIN_SCORE <= S.oppScore then
+  if WIN_SCORE <= S.playerScore or WIN_SCORE <= S.oppScore 
+  then
     S.state = "gameover"
     return true
-  end
-  return false
-end
-
-function check_score()
-  local b = S.ball
-  -- Ball left the screen on the right side: player scores
-  if screen_w < b.x + b.size then
-    return scored("plr")
-  end
-  -- Ball left the screen on the left side: opponent scores
-  if b.x < 0 then
-    return scored("opp")
   end
   return false
 end
@@ -251,19 +246,54 @@ end
 
 -- control and update
 
+function key_actions_start_space()
+  S.state = "play"
+  reset_ball()
+end
+
+function key_actions_play_space()
+  -- reserve for future pause or ignore
+end
+
+function key_actions_gameover_space()
+  S.playerScore = 0
+  S.oppScore = 0
+  rebuild_score_texts()
+  layout()
+  S.state = "start"
+end
+
+function key_actions_common_escape()
+  love.event.quit()
+end
+
+key_actions = {
+  start = {
+    space = key_actions_start_space
+  },
+  play = {
+    space = key_actions_play_space
+  },
+  gameover = {
+    space = key_actions_gameover_space
+  },
+  common = {
+    escape = key_actions_common_escape
+  }
+}
+
 function love.keypressed(k)
-  if k == "space" then
-    if S.state == "start" then
-      S.state = "play"
-      reset_ball()
-    elseif S.state == "gameover" then
-      S.playerScore, S.oppScore = 0, 0
-      rebuild_score_texts()
-      layout()
-      S.state = "start"
+  local s = S.state
+  if key_actions[s] then
+    if key_actions[s][k]
+    then
+      key_actions[s][k]()
+      return
     end
-  elseif k == "escape" then
-    love.event.quit()
+  end
+  if key_actions.common[k]
+  then
+    key_actions.common[k]()
   end
 end
 
@@ -290,22 +320,35 @@ end
 
 -- main step/update
 
+function step_ball(b, dt)
+  move_ball(b, dt)
+  bounce_ball(b)
+  collide(b, S.player, S.player.w)
+  collide(b, S.opp, -b.size)
+end
+
+function handle_score()
+  local side = check_scored(S.ball.x)
+  if side then
+    scored(side)
+    reset_ball()
+    return true
+  end
+  return false
+end
+
 function step_game(dt)
-  if S.state ~= "play" then
-    return 
+  if S.state ~= "play"
+  then
+    return
   end
   local sdt = dt * SPEED_SCALE
   update_player(sdt)
   strategy.update(S, sdt)
-  move_ball(S.ball, sdt)
-  bounce_ball(S.ball)
-  collide(S.ball, S.player, S.player.w)
-  collide(S.ball, S.opp, -S.ball.size)
-  if check_score() then
-    return 
-  end
-  if S.ball.x < 0 or screen_w < S.ball.x + S.ball.size then
-    reset_ball()
+  step_ball(S.ball, sdt)
+  if handle_score()
+  then
+    return
   end
 end
 
@@ -354,7 +397,7 @@ end
 function draw_state_text()
   if S.state == "start" then
     gfx.draw(TXT_START, screen_w / 2 - 40, screen_h / 2 - 16) 
-  elseif S.state == "gameover" then
+  elseif S.state == "gameover" then 
     gfx.draw(TXT_OVER, screen_w / 2 - 40, screen_h / 2 - 16)
   end
 end
