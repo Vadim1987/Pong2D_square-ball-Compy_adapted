@@ -4,8 +4,8 @@
 -- AI strategy
 
 local function opp_ai(S, dt)
-  local c = S.opp.y + S.opp.h / 2
-  local by = S.ball.y + S.ball.size / 2
+  local c = S.opp.y + paddle_h / 2
+  local by = S.ball.y + ball_size / 2
   local d = by - c
   if math.abs(d) < AI_DEADZONE then
     S.opp.dy = 0

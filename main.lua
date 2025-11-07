@@ -33,15 +33,11 @@ S = {}
 S.player = {
   x = PADDLE_OFFSET_X,
   y = 0,
-  w = PADDLE_WIDTH,
-  h = PADDLE_HEIGHT,
   dy = 0
 }
 S.opp = {
   x = 0,
   y = 0,
-  w = PADDLE_WIDTH,
-  h = PADDLE_HEIGHT,
   dy = 0
 }
 S.ball = {
@@ -49,10 +45,11 @@ S.ball = {
   y = 0,
   dx = BALL_SPEED_X,
   dy = BALL_SPEED_Y,
-  size = BALL_SIZE
 }
-S.playerScore = 0
-S.oppScore = 0
+S.score = {
+  player = 0,
+  opp = 0
+}
 S.state = "start"
 
 FONT, TXT_START, TXT_OVER, TXT_L, TXT_R = nil
@@ -76,16 +73,11 @@ end
 
 function layout()
   -- apply scaled sizes to state
-  S.player.w = paddle_w
-  S.player.h = paddle_h
-  S.player.y = (screen_h - S.player.h) / 2
-  S.opp.w = paddle_w
-  S.opp.h = paddle_h
-  S.opp.x = (screen_w - PADDLE_OFFSET_X) - S.opp.w
-  S.opp.y = (screen_h - S.opp.h) / 2
-  S.ball.size = ball_size
-  S.ball.x = (screen_w - S.ball.size) / 2
-  S.ball.y = (screen_h - S.ball.size) / 2
+  S.player.y = (screen_h - paddle_h) / 2
+  S.opp.x = (screen_w - PADDLE_OFFSET_X) - paddle_w
+  S.opp.y = (screen_h - paddle_h) / 2
+  S.ball.x = (screen_w - ball_size) / 2
+  S.ball.y = (screen_h - ball_size) / 2
 end
 
 -- canvas
@@ -127,8 +119,8 @@ function rebuild_score_texts()
   if TXT_R then
     TXT_R:release()
   end
-  TXT_L = gfx.newText(FONT, tostring(S.playerScore))
-  TXT_R = gfx.newText(FONT, tostring(S.oppScore))
+  TXT_L = gfx.newText(FONT, tostring(S.score.player))
+  TXT_R = gfx.newText(FONT, tostring(S.score.opp))
 end
 
 -- initialization
@@ -139,7 +131,6 @@ function do_init()
   build_center_canvas()
   build_static_texts()
   rebuild_score_texts()
-  love.mouse.setRelativeMode(true)
   mouse_enabled = true
   time_t = love.timer.getTime()
   inited = true
@@ -164,26 +155,25 @@ function move_paddle(p, dir, dt)
 end
 
 function check_scored(bx)
-  local bs = S.ball.size
   if bx < 0 then
     return "opp"
   end
-  if screen_w < bx + bs then
-    return "plr"
+  if screen_w < bx + ball_size then
+    return "player"
   end
   return nil
 end
 
-function move_ball(b,dt)
-  b.x=b.x+b.dx*dt
-  b.y=b.y+b.dy*dt
-  if b.y<0 then
-    b.y=0
-    b.dy=-b.dy
+function move_ball(b, dt)
+  b.x = b.x + b.dx * dt
+  b.y = b.y + b.dy * dt
+  if b.y < 0 then
+    b.y = 0
+    b.dy = -b.dy
   end
-  if screen_h<b.y+b.size then
-    b.y=screen_h-b.size
-    b.dy=-b.dy
+  if screen_h < b.y + ball_size then
+    b.y = screen_h - ball_size
+    b.dy = -b.dy
   end
   return check_scored(b.x)
 end
@@ -202,16 +192,16 @@ end
 -- collision and score
 
 function hit_offset(b, p)
-  local pc = p.y + p.h / 2
-  local bc = b.y + b.size / 2
-  return (bc - pc) / (p.h / 2)
+  local pc = p.y + paddle_h / 2
+  local bc = b.y + ball_size / 2
+  return (bc - pc) / (paddle_h / 2)
 end
 
 function collide(b, p, off)
-  local hx1 = b.x < p.x + p.w
-  local hx2 = p.x < b.x + b.size
-  local hy1 = b.y < p.y + p.h
-  local hy2 = p.y < b.y + b.size
+  local hx1 = b.x < p.x + paddle_w
+  local hx2 = p.x < b.x + ball_size
+  local hy1 = b.y < p.y + paddle_h
+  local hy2 = p.y < b.y + ball_size
   if hx1 and hx2 and hy1 and hy2 then
     b.x = p.x + off
     b.dx = -b.dx
@@ -220,15 +210,12 @@ function collide(b, p, off)
 end
 
 function scored(side)
-  if side == "opp" then
-    S.oppScore = S.oppScore + 1
-  else
-    S.playerScore = S.playerScore + 1
-  end
+  local s = S.score
+  s[side] = s[side] + 1
   rebuild_score_texts()
-  if WIN_SCORE <= S.playerScore or WIN_SCORE <= S.oppScore 
-  then
+  if WIN_SCORE <= s[side] then
     S.state = "gameover"
+    love.mouse.setRelativeMode(false)
     return true
   end
   return false
@@ -238,7 +225,7 @@ function reset_ball()
   local b = S.ball
   b.x = (screen_w - ball_size) / 2
   b.y = (screen_h - ball_size) / 2
-  local s = S.playerScore + S.oppScore
+  local s = S.score.player + S.score.opp
   local dir = (s % 2 == 0) and 1 or -1
   b.dx = dir * BALL_SPEED_X
   b.dy = ((s % 3 - 1) * BALL_SPEED_Y) * 0.3
@@ -246,63 +233,54 @@ end
 
 -- control and update
 
-function key_actions_start_space()
+key_actions = {
+  start = { },
+  play = { },
+  gameover = { }
+}
+
+function key_actions.start.space()
   S.state = "play"
+  love.mouse.setRelativeMode(true)
   reset_ball()
 end
 
-function key_actions_play_space()
-  -- reserve for future pause or ignore
+-- reserve for future pause or ignore
+function key_actions.play.space()
+
 end
 
-function key_actions_gameover_space()
-  S.playerScore = 0
-  S.oppScore = 0
+function key_actions.gameover.space()
+  S.score.player = 0
+  S.score.opp = 0
   rebuild_score_texts()
   layout()
   S.state = "start"
+  love.mouse.setRelativeMode(false)
 end
 
-function key_actions_common_escape()
-  love.event.quit()
+for i in pairs(key_actions) do
+  key_actions[i].escape = love.event.quit
 end
-
-key_actions = {
-  start = {
-    space = key_actions_start_space
-  },
-  play = {
-    space = key_actions_play_space
-  },
-  gameover = {
-    space = key_actions_gameover_space
-  },
-  common = {
-    escape = key_actions_common_escape
-  }
-}
 
 function love.keypressed(k)
-  local s = S.state
-  if key_actions[s] then
-    if key_actions[s][k]
-    then
-      key_actions[s][k]()
-      return
-    end
-  end
-  if key_actions.common[k]
-  then
-    key_actions.common[k]()
+  local s = key_actions[S.state]
+  if s[k] then
+    s[k]()
   end
 end
+
+keydown = {
+  q = -1,
+  a = 1
+}
 
 function update_player(dt)
   local dir = 0
-  if love.keyboard.isDown("q") then
-    dir = -1
-  elseif love.keyboard.isDown("a") then
-    dir = 1
+  for k, v in pairs(keydown) do
+    if love.keyboard.isDown(k) then
+      dir = v
+    end
   end
   move_paddle(S.player, dir, dt)
 end
@@ -323,8 +301,8 @@ end
 function step_ball(b, dt)
   move_ball(b, dt)
   bounce_ball(b)
-  collide(b, S.player, S.player.w)
-  collide(b, S.opp, -b.size)
+  collide(b, S.player, paddle_w)
+  collide(b, S.opp, -ball_size)
 end
 
 function handle_score()
@@ -382,11 +360,11 @@ function draw_bg()
 end
 
 function draw_paddle(p)
-  gfx.rectangle("fill", p.x, p.y, p.w, p.h)
+  gfx.rectangle("fill", p.x, p.y, paddle_w, paddle_h)
 end
 
 function draw_ball(b)
-  gfx.rectangle("fill", b.x, b.y, b.size, b.size)
+  gfx.rectangle("fill", b.x, b.y, ball_size, ball_size)
 end
 
 function draw_scores()
@@ -394,11 +372,17 @@ function draw_scores()
   gfx.draw(TXT_R, screen_w / 2 + 40, SCORE_OFFSET_Y)
 end
 
-function draw_state_text()
-  if S.state == "start" then
-    gfx.draw(TXT_START, screen_w / 2 - 40, screen_h / 2 - 16) 
-  elseif S.state == "gameover" then 
-    gfx.draw(TXT_OVER, screen_w / 2 - 40, screen_h / 2 - 16)
+function draw_state_text(s)
+  local state_text = {
+    start = TXT_START,
+    gameover = TXT_OVER
+  }
+  if state_text[s] then
+    gfx.draw(
+      state_text[s],
+      screen_w / 2 - 40,
+      screen_h / 2 - 16
+    )
   end
 end
 
@@ -411,7 +395,7 @@ function love.draw()
   draw_paddle(S.opp)
   draw_ball(S.ball)
   draw_scores()
-  draw_state_text()
+  draw_state_text(S.state)
 end
 
 function love.resize()
