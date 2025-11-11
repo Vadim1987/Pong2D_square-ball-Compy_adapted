@@ -141,7 +141,7 @@ function do_init()
   mouse_enabled = true
   time_t = love.timer.getTime()
   inited = true
-  strategy.set_opp_strategy("ai")
+  opponent = hard
 end
 
 function ensure_init()
@@ -332,11 +332,8 @@ function step_game(dt)
     return 
   end
   local sdt = dt * SPEED_SCALE
-  local current = strategy.current
   update_player(sdt)
-  if current then
-    current(S, sdt)
-  end
+  opponent(S, sdt)
   step_ball(S.ball, sdt)
   handle_score()
 end
