@@ -52,6 +52,11 @@ S.score = {
 }
 S.state = "start"
 
+S.strategy = {
+  fn = nil,
+  text = nil
+}
+
 -- ui resources
 font = nil
 texts = { }
@@ -140,9 +145,9 @@ function build_static_texts()
   rebuild_score_texts()
 end
 
-function set_strategy(s)
-  opponent = strategy[s]
-  opp_text = texts[s]
+function set_strategy(name)
+  S.strategy.fn = strategy[name]
+  S.strategy.text = texts[name]
 end
 
 function do_init()
@@ -279,9 +284,7 @@ function key_actions.start.h()
 end
 
 key_actions.start["1"] = function()
-  if opponent ~= strategy.easy then
-    set_strategy("hard")
-  end
+  set_strategy("hard")
 end
 
 key_actions.start["2"] = function()
@@ -365,7 +368,7 @@ function step_game(dt)
   end
   local sdt = dt * SPEED_SCALE
   update_player(sdt)
-  opponent(S, sdt)
+  S.strategy.fn(S, sdt)
   step_ball(S.ball, sdt)
   handle_score()
 end
@@ -417,8 +420,8 @@ function draw_state_text(s)
   if t then
     gfx.draw(t, VIRTUAL_W / 2 - 40, VIRTUAL_H / 2 - 16)
   end
-  if s == "start" then
-    gfx.draw(opp_text, VIRTUAL_W / 2 - 40, VIRTUAL_H / 2)
+  if s == "start" and S.strategy.text then
+    gfx.draw(S.strategy.text, VIRTUAL_W / 2 - 40, VIRTUAL_H / 2)
   end
 end
 
