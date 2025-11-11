@@ -284,7 +284,9 @@ function key_actions.start.h()
 end
 
 key_actions.start["1"] = function()
-  set_strategy("hard")
+  if S.strategy.fn ~= strategy.easy then
+    set_strategy("hard")
+  end
 end
 
 key_actions.start["2"] = function()
