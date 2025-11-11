@@ -266,6 +266,12 @@ function key_actions.start.h()
   opponent = hard
 end
 
+key_actions.start["1"] = function()
+  if opponent ~= easy then
+    opponent = hard
+  end
+end
+
 key_actions.start["2"] = function()
   opponent = manual
 end
