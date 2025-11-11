@@ -129,7 +129,7 @@ end
 function build_static_texts()
   font = gfx.getFont()
   set_text("start", "Press Space")
-  set_text("over", "Game Over")
+  set_text("gameover", "Game Over")
   rebuild_score_texts()
 end
 
@@ -393,11 +393,7 @@ function draw_scores()
 end
 
 function draw_state_text(s)
-  local state_text = {
-    start = texts.start,
-    gameover = texts.over
-  }
-  local t = state_text[s]
+  local t = texts[s]
   if t then
     gfx.draw(t, VIRTUAL_W / 2 - 40, VIRTUAL_H / 2 - 16)
   end
