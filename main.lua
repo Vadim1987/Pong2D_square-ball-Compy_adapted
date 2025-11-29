@@ -3,6 +3,7 @@
 require "constants"
 require "strategy"
 
+sfx = compy.audio
 gfx = love.graphics
 
 -- virtual game space
@@ -209,14 +210,13 @@ function move_ball(b, dt)
 end
 
 function bounce_ball(b)
-  if b.y < 0 then
-    b.y = 0
-    b.dy = -b.dy
+  local y, dy = b.y, b.dy
+  if y >= 0 and y <= ball_max_y then
+    return
   end
-  if ball_max_y < b.y then
-    b.y = ball_max_y
-    b.dy = -b.dy
-  end
+  b.dy = -dy
+  b.y = y - dy
+  sfx.knock()
 end
 
 -- collision and score
@@ -236,6 +236,7 @@ function collide(b, p, off)
     b.x = p.x + off
     b.dx = -b.dx
     b.dy = b.dy + hit_offset(b, p) * (BALL_SPEED_Y * 0.75)
+    sfx.shot()
   end
 end
 
@@ -246,8 +247,10 @@ function scored(side)
   if WIN_SCORE <= s[side] then
     S.state = "gameover"
     love.mouse.setRelativeMode(false)
+    sfx.gameover()
     return true
   end
+  sfx.win()
   return false
 end
 
@@ -273,24 +276,29 @@ function key_actions.start.space()
   S.state = "play"
   love.mouse.setRelativeMode(true)
   reset_ball()
+  sfx.beep()
 end
 
 function key_actions.start.e()
   set_strategy("easy")
+  sfx.toggle()
 end
 
 function key_actions.start.h()
   set_strategy("hard")
+  sfx.toggle()
 end
 
 key_actions.start["1"] = function()
   if S.strategy.fn ~= strategy.easy then
     set_strategy("hard")
   end
+  sfx.toggle()
 end
 
 key_actions.start["2"] = function()
   set_strategy("manual")
+  sfx.toggle()
 end
 
 function key_actions.play.space()
@@ -313,9 +321,9 @@ for name in pairs(key_actions) do
 end
 
 function love.keypressed(k)
-  local group = key_actions[S.state]
-  if group and group[k] then
-    group[k]()
+  local action = key_actions[S.state][k]
+  if action then
+    action()
   end
 end
 
@@ -417,13 +425,16 @@ function draw_scores()
   gfx.draw(texts.score_r, VIRTUAL_W / 2 + 40, SCORE_OFFSET_Y)
 end
 
-function draw_state_text(s)
-  local t = texts[s]
+function draw_state_text(t, p)
   if t then
-    gfx.draw(t, VIRTUAL_W / 2 - 40, VIRTUAL_H / 2 - 16)
+    local y = p * VIRTUAL_H - t:getHeight() / 2
+    gfx.draw(t, (VIRTUAL_W - t:getWidth()) / 2, y)
   end
-  if s == "start" and S.strategy.text then
-    gfx.draw(S.strategy.text, VIRTUAL_W / 2 - 40, VIRTUAL_H / 2)
+end
+function draw_state_texts(s)
+  draw_state_text(texts[s], 0.4)
+  if s == "start" then
+    draw_state_text(S.strategy.text, 0.6)
   end
 end
 
@@ -436,7 +447,7 @@ function love.draw()
   draw_paddle(S.opp)
   draw_ball(S.ball)
   draw_scores()
-  draw_state_text(S.state)
+  draw_state_texts(S.state)
   gfx.pop()
 end
 
