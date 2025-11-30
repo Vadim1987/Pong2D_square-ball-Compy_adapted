@@ -366,7 +366,7 @@ function handle_score()
   local side = check_scored(S.ball.x)
   if side then
     scored(side)
-    reset_ball()
+    layout()
     return true
   end
   return false
