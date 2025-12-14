@@ -44,6 +44,9 @@ S.opp = {
 S.ball = {
   x = 0,
   y = 0,
+  x0 = 0,
+  y0 = 0,
+  t0 = 0,
   dx = BALL_SPEED_X,
   dy = BALL_SPEED_Y
 }
@@ -195,21 +198,30 @@ function check_scored(bx)
   return nil
 end
 
-function move_ball(b, dt)
-  b.x = b.x + b.dx * dt
-  b.y = b.y + b.dy * dt
+function sync_ball_state(b, t)
+  b.x0 = b.x
+  b.y0 = b.y
+  b.t0 = t
+end
+
+function move_ball(b, t) 
+  local time_elapsed = t - b.t0
+  b.x = b.x0 + b.dx * time_elapsed
+  b.y = b.y0 + b.dy * time_elapsed
   if b.y < 0 then
     b.y = 0
     b.dy = -b.dy
+    sync_ball_state(b, t) 
   end
   if VIRTUAL_H < b.y + BALL_SIZE then
     b.y = VIRTUAL_H - BALL_SIZE
     b.dy = -b.dy
+    sync_ball_state(b, t) 
   end
   return check_scored(b.x)
 end
 
-function bounce_ball(b)
+function bounce_ball(b, t) 
   local y, dy = b.y, b.dy
   if y >= 0 and y <= ball_max_y then
     return
@@ -217,6 +229,7 @@ function bounce_ball(b)
   b.dy = -dy
   b.y = y - dy
   sfx.knock()
+  sync_ball_state(b, t) 
 end
 
 -- collision and score
@@ -227,7 +240,7 @@ function hit_offset(b, p)
   return (bc - pc) / (PADDLE_HEIGHT / 2)
 end
 
-function collide(b, p, off)
+function collide(b, p, off, t) 
   local hx1 = b.x < p.x + PADDLE_WIDTH
   local hx2 = p.x < b.x + BALL_SIZE
   local hy1 = b.y < p.y + PADDLE_HEIGHT
@@ -237,6 +250,7 @@ function collide(b, p, off)
     b.dx = -b.dx
     b.dy = b.dy + hit_offset(b, p) * (BALL_SPEED_Y * 0.75)
     sfx.shot()
+    sync_ball_state(b, t) 
   end
 end
 
@@ -254,10 +268,11 @@ function scored(side)
   return false
 end
 
-function reset_ball()
+function reset_ball(t) 
   local b = S.ball
   b.x = (VIRTUAL_W - BALL_SIZE) / 2
   b.y = (VIRTUAL_H - BALL_SIZE) / 2
+  sync_ball_state(b, t) 
   local total = S.score.player + S.score.opp
   local dir = (total % 2 == 0) and 1 or -1
   b.dx = dir * BALL_SPEED_X
@@ -275,7 +290,7 @@ key_actions = {
 function key_actions.start.space()
   S.state = "play"
   love.mouse.setRelativeMode(true)
-  reset_ball()
+  reset_ball(love.timer.getTime()) 
   sfx.beep()
 end
 
@@ -354,33 +369,31 @@ function love.mousemoved(x, y, dx, dy, t)
 end
 
 -- main step/update
-
-function step_ball(b, dt)
-  move_ball(b, dt)
-  bounce_ball(b)
-  collide(b, S.player, PADDLE_WIDTH)
-  collide(b, S.opp, -BALL_SIZE)
+function step_ball(b, t) 
+  move_ball(b, t)
+  collide(b, S.player, PADDLE_WIDTH, t) 
+  collide(b, S.opp, -BALL_SIZE, t)     
 end
 
-function handle_score()
+function handle_score(t) 
   local side = check_scored(S.ball.x)
   if side then
     scored(side)
-    layout()
+    reset_ball(t)
     return true
   end
   return false
 end
 
-function step_game(dt)
+function step_game(dt, t) 
   if S.state ~= "play" then
     return 
   end
   local sdt = dt * SPEED_SCALE
   update_player(sdt)
   S.strategy.fn(S, sdt)
-  step_ball(S.ball, sdt)
-  handle_score()
+  step_ball(S.ball, t)
+  handle_score(t) 
 end
 
 function update_fixed(rdt)
@@ -398,11 +411,7 @@ function love.update(dt)
   local now = love.timer.getTime()
   local rdt = now - time_t
   time_t = now
-  if USE_FIXED then
-    update_fixed(rdt)
-  else
-    step_game(rdt)
-  end
+  step_game(rdt, now)
 end
 
 -- drawing
