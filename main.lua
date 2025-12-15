@@ -39,14 +39,17 @@ S.opp = {
   dy = 0 
 }
 S.ball = {
-  x = 0, y = 0,
-  x0 = 0, y0 = 0, t0 = 0, 
+  x = 0,
+  y = 0,
+  x0 = 0,
+  y0 = 0,
+  t0 = 0,
   dx = BALL_SPEED_X,
   dy = BALL_SPEED_Y
 }
-S.score = { 
-  player = 0, 
-  opp = 0 
+S.score = {
+  player = 0,
+  opp = 0
 }
 S.state = "start"
 
@@ -181,39 +184,25 @@ function do_init()
   reset_ball(love.timer.getTime())
   build_center_canvas()
   build_static_texts()
-  mouse_enabled = true
   time_t = love.timer.getTime()
   inited = true
   set_strategy("hard")
 end
 
-function ensure_init()
-  if not inited then
-    do_init()
-  end
-end
-
 -- paddle and ball movement
-function clamp_paddle_x(p, is_left_player)
-  local limit = VIRTUAL_W / 2
-  local min_x = is_left_player and 0 
-  or limit
-  local max_x = is_left_player and (limit - PADDLE_WIDTH) 
-  or (VIRTUAL_W - PADDLE_WIDTH)
-  p.x = math.min(math.max(p.x, min_x), max_x)
+function apply_velocity(p, dt)
+  p.x = p.x + p.dx * dt
+  p.y = p.y + p.dy * dt
 end
 
-function clamp_paddle(p, is_left_player)
+function clamp_paddle(p, is_left)
   local max_y = VIRTUAL_H - PADDLE_HEIGHT
   p.y = math.min(math.max(p.y, 0), max_y)
-  clamp_paddle_x(p, is_left_player)
-end
-
-function move_paddle(p, dx, dy, dt, is_left_player)
-  p.dx, p.dy = dx, dy
-  p.x = p.x + dx * dt
-  p.y = p.y + dy * dt
-  clamp_paddle(p, is_left_player)
+  local limit = VIRTUAL_W / 2
+  local min_x = is_left and 0 or limit
+  local max_x = is_left and (limit - PADDLE_WIDTH) or 
+  (VIRTUAL_W - PADDLE_WIDTH)
+  p.x = math.min(math.max(p.x, min_x), max_x)
 end
 
 function check_scored(bx)
@@ -260,13 +249,11 @@ end
 
 function reset_ball(t) 
   local b = S.ball
-  b.x = (VIRTUAL_W - BALL_SIZE) / 2
+  local target_x = VIRTUAL_W / 3
+  b.x = target_x - BALL_SIZE / 2
   b.y = (VIRTUAL_H - BALL_SIZE) / 2
+  b.dx, b.dy = 0, 0
   sync_ball_state(b, t) 
-  local total = S.score.player + S.score.opp
-  local dir = (total % 2 == 0) and 1 or -1
-  b.dx = dir * BALL_SPEED_X
-  b.dy = ((total % 3 - 1) * BALL_SPEED_Y) * 0.3
 end
 
 -- control and update
@@ -305,9 +292,6 @@ key_actions.start["2"] = function()
   sfx.toggle()
 end
 
-function key_actions.play.space() 
-end
-
 function key_actions.play.r()
   S.score.player = 0
   S.score.opp = 0
@@ -330,41 +314,43 @@ end
 function update_player(dt)
   local tx, ty = 0, 0
   for key, dir in pairs(INPUT_P1) do
-    if love.keyboard.isDown(key) then
-      tx = tx + dir.x
-      ty = ty + dir.y
+    if love.keyboard.isDown(key) then 
+      tx, ty = tx + dir.x, ty + dir.y 
     end
   end
-  move_paddle(S.player, tx * PADDLE_SPEED, ty * PADDLE_SPEED, dt, true)
+  S.player.dx, S.player.dy = tx * PADDLE_SPEED, ty * PADDLE_SPEED
+  apply_velocity(S.player, dt)
+  clamp_paddle(S.player, true)
 end
 
-function love.mousemoved(x, y, dx, dy, t)
-  if not mouse_enabled or t or S.state ~= "play" then 
+function love.mousemoved(x, y, dx, dy)
+  if S.state ~= "play" then 
     return 
   end
-  local p = S.player
-  p.y = p.y + dy * MOUSE_SENSITIVITY
-  p.dx = 0
-  p.dy = dy * MOUSE_SENSITIVITY / love.timer.getDelta()
-  clamp_paddle(p, true)
+  S.player.dy = dy * MOUSE_SENSITIVITY / love.timer.getDelta()
+  S.player.y = S.player.y + dy * MOUSE_SENSITIVITY
+  clamp_paddle(S.player, true) 
 end
 
 -- main step/update
+function try_hit(ball, paddle, t)
+  if Physics.resolve_collision(ball, paddle) then
+    sync_ball_state(ball, t) 
+    return true
+  end
+  return false
+end
+
 function step_ball(b, t)
   move_ball(b, t)
-  if Physics.resolve_collision(b, S.player, t, sync_ball_state)
-       or Physics.resolve_collision(
-    b,
-    S.opp,
-    t,
-    sync_ball_state
-  )
-  then
-    sfx.shot()
+  local hit_p = try_hit(b, S.player, t)
+  local hit_o = try_hit(b, S.opp, t)
+  if hit_p or hit_o then 
+    sfx.shot() 
   end
 end
 
-function handle_score(t) 
+function handle_score(t)
   local side = check_scored(S.ball.x)
   if side then
     scored(side)
@@ -385,10 +371,16 @@ function step_game(dt, t)
 end
 
 function love.update(dt)
-  ensure_init()
-  local now = love.timer.getTime()
-  time_t = now
-  step_game(dt, now)
+  if not inited then 
+    do_init() 
+  end 
+  if S.state ~= "play" then 
+    return 
+  end
+  update_player(dt)
+  S.strategy.fn(S, dt)
+  step_ball(S.ball, love.timer.getTime())
+  handle_score(love.timer.getTime()) 
 end
 
 -- drawing
