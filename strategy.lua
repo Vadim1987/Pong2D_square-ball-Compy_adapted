@@ -5,37 +5,30 @@ strategy = { }
 
 -- fast AI (hard)
 function strategy.hard(S, dt)
-  local c = S.opp.y + PADDLE_HEIGHT / 2
-  local by = S.ball.y + BALL_SIZE / 2
-  local d = by - c
-  if math.abs(d) < AI_DEADZONE then
-    S.opp.dy = 0
-  else
-    local dir = (0 < d) and 1 or -1
-    move_paddle(S.opp, dir, dt)
-  end
+  local b, p = S.ball, S.opp
+  local y_diff = (b.y + BALL_SIZE/2) - (p.y + PADDLE_HEIGHT/2)
+  local dy = (math.abs(y_diff) > AI_DEADZONE) and 
+    (y_diff > 0 and 1 or -1) * PADDLE_SPEED or 0
+  move_paddle(p, 0, dy, dt, false)
 end
 
 -- slow AI (easy)
 function strategy.easy(S, dt)
-  local c = S.opp.y + PADDLE_HEIGHT / 2
-  local by = S.ball.y + BALL_SIZE / 2
-  local d = by - c
-  if math.abs(d) < AI_DEADZONE then
-    S.opp.dy = 0
-  else
-    local dir = (0 < d) and 1 or -1
-    move_paddle(S.opp, dir, dt * 0.6)
-  end
+  local b, p = S.ball, S.opp
+  local y_diff = (b.y + BALL_SIZE/2) - (p.y + PADDLE_HEIGHT/2)
+  local dy = (math.abs(y_diff) > AI_DEADZONE) and 
+    (y_diff > 0 and 1 or -1) * (PADDLE_SPEED * 0.6) or 0
+  move_paddle(p, 0, dy, dt, false)
 end
 
--- Manual (second player)
+-- Manual (second player): 2D enabled
 function strategy.manual(S, dt)
-  local dir = 0
-  if love.keyboard.isDown("up") then
-    dir = -1
-  elseif love.keyboard.isDown("down") then
-    dir = 1
+  local tx, ty = 0, 0
+  for key, dir in pairs(INPUT_P2) do
+    if love.keyboard.isDown(key) then
+      tx = tx + dir.x
+      ty = ty + dir.y
+    end
   end
-  move_paddle(S.opp, dir, dt)
+  move_paddle(S.opp, tx * PADDLE_SPEED, ty * PADDLE_SPEED, dt, false)
 end
