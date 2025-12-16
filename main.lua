@@ -16,31 +16,27 @@ MOUSE_SENSITIVITY = 1
 -- runtime variables
 view_tf = nil
 screen_w, screen_h = 0, 0
-paddle_max_y = 0
-ball_max_y = 0
 
 inited = false
-mouse_enabled = false
 time_t = 0 
 
 -- game state
 S = { }
 
 S.player = { 
-  x = PADDLE_OFFSET_X, 
+  x = PADDLE_OFFSET_X,
   y = 0,
   dx = 0,
-  dy = 0 
+  dy = 0,
+  mouse_moved = false
 }
 S.opp = { 
-  x = 0, 
-  y = 0, 
-  dx = 0,
-  dy = 0 
-}
-S.ball = {
   x = 0,
   y = 0,
+  dx = 0,
+  dy = 0
+}
+S.ball = {
   x0 = 0,
   y0 = 0,
   t0 = 0,
@@ -163,12 +159,8 @@ end
 -- initialization
 function build_static_texts()
   font = gfx.getFont()
-  set_text("start", 
-  "Press Space to Start"
-)
-  set_text("gameover", 
-  "Game Over"
-)
+  set_text("start", "Press Space to Start")
+  set_text("gameover", "Game Over")
   rebuild_opp_texts()
   rebuild_score_texts()
 end
@@ -200,8 +192,8 @@ function clamp_paddle(p, is_left)
   p.y = math.min(math.max(p.y, 0), max_y)
   local limit = VIRTUAL_W / 2
   local min_x = is_left and 0 or limit
-  local max_x = is_left and (limit - PADDLE_WIDTH) or 
-  (VIRTUAL_W - PADDLE_WIDTH)
+  local max_x = is_left and (limit - PADDLE_WIDTH)
+       or (VIRTUAL_W - PADDLE_WIDTH)
   p.x = math.min(math.max(p.x, min_x), max_x)
 end
 
@@ -249,7 +241,7 @@ end
 
 function reset_ball(t) 
   local b = S.ball
-  local target_x = VIRTUAL_W / 3
+  local target_x = VIRTUAL_W / 6
   b.x = target_x - BALL_SIZE / 2
   b.y = (VIRTUAL_H - BALL_SIZE) / 2
   b.dx, b.dy = 0, 0
@@ -257,10 +249,10 @@ function reset_ball(t)
 end
 
 -- control and update
-key_actions = { 
-  start = { }, 
-  play = { }, 
-  gameover = { } 
+key_actions = {
+  start = { },
+  play = { },
+  gameover = { }
 }
 
 function key_actions.start.space()
@@ -312,13 +304,22 @@ function love.keypressed(k)
 end
 
 function update_player(dt)
+  if not S.player.mouse_moved then 
+    S.player.dx = 0
+    S.player.dy = 0 
+  end
   local tx, ty = 0, 0
-  for key, dir in pairs(INPUT_P1) do
-    if love.keyboard.isDown(key) then 
-      tx, ty = tx + dir.x, ty + dir.y 
+  for k, d in pairs(INPUT_P1) do
+    if love.keyboard.isDown(k) then 
+      tx = tx + d.x
+      ty = ty + d.y 
     end
   end
-  S.player.dx, S.player.dy = tx * PADDLE_SPEED, ty * PADDLE_SPEED
+  if tx ~= 0 or ty ~= 0 then
+    S.player.dx = tx * PADDLE_SPEED
+    S.player.dy = ty * PADDLE_SPEED
+  end
+  S.player.mouse_moved = false
   apply_velocity(S.player, dt)
   clamp_paddle(S.player, true)
 end
@@ -327,15 +328,19 @@ function love.mousemoved(x, y, dx, dy)
   if S.state ~= "play" then 
     return 
   end
-  S.player.dy = dy * MOUSE_SENSITIVITY / love.timer.getDelta()
-  S.player.y = S.player.y + dy * MOUSE_SENSITIVITY
-  clamp_paddle(S.player, true) 
+  local dt = love.timer.getDelta()
+  if dt == 0 then 
+    return 
+  end 
+  S.player.dx = dx * MOUSE_SENSITIVITY / dt
+  S.player.dy = dy * MOUSE_SENSITIVITY / dt
+  S.player.mouse_moved = true
 end
 
 -- main step/update
 function try_hit(ball, paddle, t)
   if Physics.resolve_collision(ball, paddle) then
-    sync_ball_state(ball, t) 
+    sync_ball_state(ball, t)
     return true
   end
   return false
@@ -345,8 +350,8 @@ function step_ball(b, t)
   move_ball(b, t)
   local hit_p = try_hit(b, S.player, t)
   local hit_o = try_hit(b, S.opp, t)
-  if hit_p or hit_o then 
-    sfx.shot() 
+  if hit_p or hit_o then
+    sfx.shot()
   end
 end
 
@@ -358,16 +363,6 @@ function handle_score(t)
     return true
   end
   return false
-end
-
-function step_game(dt, t) 
-  if S.state ~= "play" then 
-    return 
-  end
-  update_player(dt)
-  S.strategy.fn(S, dt)
-  step_ball(S.ball, t)
-  handle_score(t) 
 end
 
 function love.update(dt)
@@ -402,12 +397,25 @@ function draw_scores()
   gfx.draw(texts.score_r, VIRTUAL_W / 2 + 40, SCORE_OFFSET_Y)
 end
 
-function draw_centered(text_obj, percent_y)
-  if text_obj then
-    local y = percent_y * VIRTUAL_H - text_obj:getHeight() / 2
-    local x = (VIRTUAL_W - text_obj:getWidth()) / 2
-    gfx.draw(text_obj, x, y)
+function update_player(dt)
+  if not S.player.mouse_moved then
+    S.player.dx = 0
+    S.player.dy = 0
   end
+  local tx, ty = 0, 0
+  for k, d in pairs(INPUT_P1) do
+    if love.keyboard.isDown(k) then
+      tx = tx + d.x
+      ty = ty + d.y
+    end
+  end
+  if tx ~= 0 or ty ~= 0 then
+    S.player.dx = tx * PADDLE_SPEED
+    S.player.dy = ty * PADDLE_SPEED
+  end
+  S.player.mouse_moved = false
+  apply_velocity(S.player, dt)
+  clamp_paddle(S.player, true)
 end
 
 function draw_state_texts(s)
