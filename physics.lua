@@ -1,46 +1,103 @@
 -- physics.lua
-Physics = { }
 
-function get_axis_overlap(c1, size1, c2, size2)
-  local limit = (size1 + size2) / 2
-  return limit - math.abs(c1 - c2)
+PHYS_ZERO_PADDLE = {
+  dx = 0,
+  dy = 0,
+  x = 0, 
+  y = 0  
+}
+
+function phys_dot(ax, ay, bx, by)
+  return ax * bx + ay * by
 end
 
-function apply_bounce(ball, paddle, nx, ny)
+function phys_reflect(ball, paddle, nx, ny)
   local rvx = ball.dx - paddle.dx
   local rvy = ball.dy - paddle.dy
-  local dot = (rvx * nx) + (rvy * ny)
-  if 0 < dot then
+  local vn = phys_dot(rvx, rvy, nx, ny)
+  if vn >= 0 then
     return false
   end
-  local impulse = -2 * dot
-  ball.dx = ball.dx + (impulse * nx)
-  ball.dy = ball.dy + (impulse * ny)
+  ball.dx = ball.dx - 2 * vn * nx
+  ball.dy = ball.dy - 2 * vn * ny
   return true
 end
 
-function get_collision_data(ball, paddle)
-  local bx = ball.x + BALL_SIZE / 2
-  local by = ball.y + BALL_SIZE / 2
-  local px = paddle.x + PADDLE_WIDTH / 2
-  local py = paddle.y + PADDLE_HEIGHT / 2
-  local ox = get_axis_overlap(bx, BALL_SIZE, px, PADDLE_WIDTH)
-  local oy = get_axis_overlap(by, BALL_SIZE, py, PADDLE_HEIGHT)
-  if ox <= 0 or oy <= 0 then
+function phys_hit_paddle_x(ball, paddle, psx, psy, dt)
+  local rvx = ball.dx - paddle.dx
+  if rvx == 0 then
     return nil
   end
-  if ox < oy then
-    return (px < bx and 1 or -1), 0, ox
+  local px = psx
+  if rvx > 0 then
+    px = px - BALL_SIZE
+  else
+    px = px + PADDLE_WIDTH
   end
-  return 0, (py < by and 1 or -1), oy
+  local t = (px - ball.x) / rvx
+  if t < 0 or t > dt then
+    return nil
+  end
+  local y_at_t = ball.y + (ball.dy - paddle.dy) * t
+  if y_at_t + BALL_SIZE < psy or
+     psy + PADDLE_HEIGHT < y_at_t then
+    return nil
+  end
+  local nx = (rvx > 0) and -1 or 1
+  return t, nx, 0
 end
 
-function Physics.resolve_collision(ball, paddle)
-  local nx, ny, depth = get_collision_data(ball, paddle)
-  if not nx then 
-    return false 
+function phys_hit_paddle_y(ball, paddle, psx, psy, dt)
+  local rvy = ball.dy - paddle.dy
+  if rvy == 0 then
+    return nil
   end
-  ball.x = ball.x + (nx * depth)
-  ball.y = ball.y + (ny * depth)
-  return apply_bounce(ball, paddle, nx, ny)
+  local py = psy
+  if rvy > 0 then
+    py = py - BALL_SIZE
+  else
+    py = py + PADDLE_HEIGHT
+  end
+  local t = (py - ball.y) / rvy
+  if t < 0 or t > dt then
+    return nil
+  end
+  local x_at_t = ball.x + (ball.dx - paddle.dx) * t
+  if x_at_t + BALL_SIZE < psx or
+     psx + PADDLE_WIDTH < x_at_t then
+    return nil
+  end
+  local ny = (rvy > 0) and -1 or 1
+  return t, 0, ny
+end
+
+function phys_hit_paddle(ball, paddle, dt)
+  local psx = paddle.x - paddle.dx * dt
+  local psy = paddle.y - paddle.dy * dt
+  local tx, nx, ny = phys_hit_paddle_x(
+    ball,
+    paddle,
+    psx,
+    psy,
+    dt
+  )
+  local ty, mx, my = phys_hit_paddle_y(
+    ball,
+    paddle,
+    psx,
+    psy,
+    dt
+  )
+  if not tx then
+    return ty, mx, my
+  end
+  if not ty or tx < ty then
+    return tx, nx, ny
+  end
+  return ty, mx, my
+end
+
+function phys_ball_wall_y(ball, y, ny)
+  ball.y = y
+  return phys_reflect(ball, PHYS_ZERO_PADDLE, 0, ny)
 end

@@ -11,30 +11,57 @@ gfx = love.graphics
 VIRTUAL_W = 640
 VIRTUAL_H = 480
 
+-- global calculated constants
+QUARTER_WIDTH = VIRTUAL_W / 4
+PLAYER_LIM_X_MIN = PADDLE_OFFSET_X
+PLAYER_LIM_X_MAX = QUARTER_WIDTH - PADDLE_WIDTH
+OPP_LIM_X_MIN = VIRTUAL_W - QUARTER_WIDTH
+OPP_LIM_X_MAX = (VIRTUAL_W - PADDLE_OFFSET_X) - PADDLE_WIDTH
+
+-- runtime configuration
+USE_FIXED = true
+FIXED_DT = 1 / 60
+MAX_STEPS = 5
+SPEED_SCALE = 1.5
 MOUSE_SENSITIVITY = 1
 
 -- runtime variables
 view_tf = nil
 screen_w, screen_h = 0, 0
+mouse_frame_dx = 0
+mouse_frame_dy = 0
+
 inited = false
+mouse_enabled = false
+time_t, acc = 0, 0
 
 -- game state
+
 S = { }
 
-S.player = { 
+S.player = {
   x = PADDLE_OFFSET_X,
   y = 0,
   dx = 0,
   dy = 0,
-  mouse_moved = false
+  lim_x = { 
+  min = PLAYER_LIM_X_MIN, 
+  max = PLAYER_LIM_X_MAX 
 }
-S.opp = { 
+}
+S.opp = {
   x = 0,
   y = 0,
   dx = 0,
-  dy = 0
+  dy = 0,
+  lim_x = { 
+  min = OPP_LIM_X_MIN, 
+  max = OPP_LIM_X_MAX 
+}
 }
 S.ball = {
+  x = 0,
+  y = 0,
   x0 = 0,
   y0 = 0,
   t0 = 0,
@@ -47,40 +74,9 @@ S.score = {
 }
 S.state = "start"
 
-S.strategy = { 
-  fn = nil, 
-  text = nil 
-}
-
-DIR_UP = {
-  x = 0,  
-  y = -1
-}
-DIR_DOWN = {
-  x = 0,  
-  y = 1
-}
-DIR_LEFT  = {
-x = -1, 
-y = 0
-}
-DIR_RIGHT = {
-x = 1,  
-y = 0
-}
-
-INPUT_P1 = { 
-w = DIR_UP, 
-s = DIR_DOWN, 
-a = DIR_LEFT, 
-d = DIR_RIGHT 
-}
-
-INPUT_P2 = { 
-up = DIR_UP, 
-down = DIR_DOWN, 
-left = DIR_LEFT, 
-right = DIR_RIGHT 
+S.strategy = {
+  fn = nil,
+  text = nil
 }
 
 -- ui resources
@@ -109,13 +105,17 @@ function layout()
   S.player.y = (VIRTUAL_H - PADDLE_HEIGHT) / 2
   S.opp.x = (VIRTUAL_W - PADDLE_OFFSET_X) - PADDLE_WIDTH
   S.opp.y = (VIRTUAL_H - PADDLE_HEIGHT) / 2
+  S.ball.x = VIRTUAL_W / 6 - BALL_SIZE / 2
+  S.ball.y = (VIRTUAL_H - BALL_SIZE) / 2
+  S.ball.dx = 0
+  S.ball.dy = 0
 end
 
 -- text helpers
 function set_text(name, str)
   local old = texts[name]
-  if old then 
-    old:release() 
+  if old then
+    old:release()
   end
   texts[name] = gfx.newText(font, str)
 end
@@ -143,8 +143,8 @@ function draw_center_line()
 end
 
 function build_center_canvas()
-  if center_canvas then 
-    center_canvas:release() 
+  if center_canvas then
+    center_canvas:release()
   end
   center_canvas = gfx.newCanvas(VIRTUAL_W, VIRTUAL_H)
   gfx.setCanvas(center_canvas)
@@ -171,57 +171,86 @@ end
 function do_init()
   cache_dims()
   layout()
-  reset_ball(love.timer.getTime())
   build_center_canvas()
   build_static_texts()
+  mouse_enabled = true
+  time_t = love.timer.getTime()
   inited = true
   set_strategy("hard")
 end
 
--- paddle and ball movement
-function apply_velocity(p, dt)
-  p.x = p.x + p.dx * dt
-  p.y = p.y + p.dy * dt
+function ensure_init()
+  if not inited then
+    do_init()
+  end
 end
 
-function clamp_paddle(p, is_left)
-  local max_y = VIRTUAL_H - PADDLE_HEIGHT
-  p.y = math.min(math.max(p.y, 0), max_y)
-  local limit = VIRTUAL_W / 2
-  local min_x = is_left and 0 or limit
-  local max_x = is_left and (limit - PADDLE_WIDTH)
-       or (VIRTUAL_W - PADDLE_WIDTH)
-  p.x = math.min(math.max(p.x, min_x), max_x)
+-- paddle and ball movement
+function clamp_range(v, vmin, vmax)
+  if v < vmin then 
+    return vmin 
+  end
+  if vmax < v then 
+    return vmax 
+  end
+  return v
+end
+
+function clamp_paddle(p)
+  p.y = clamp_range(p.y, 0, VIRTUAL_H - PADDLE_HEIGHT)
+  if p.lim_x then
+    p.x = clamp_range(p.x, p.lim_x.min, p.lim_x.max)
+  end
+end
+
+function move_paddle(p, dirx, diry, dt)
+  p.dx = PADDLE_SPEED * dirx
+  p.dy = PADDLE_SPEED * diry
+  p.x = p.x + p.dx * dt
+  p.y = p.y + p.dy * dt
+  clamp_paddle(p)
 end
 
 function check_scored(bx)
-  if bx < 0 then 
-    return "opp" 
+  if bx < 0 then
+    return "opp"
   end
-  if VIRTUAL_W < bx + BALL_SIZE then 
-    return "player" 
+  if VIRTUAL_W < bx + BALL_SIZE then
+    return "player"
   end
   return nil
 end
 
 function sync_ball_state(b, t)
-  b.x0, b.y0, b.t0 = b.x, b.y, t
+  b.x0 = b.x
+  b.y0 = b.y
+  b.t0 = t
 end
 
-function move_ball(b, t) 
-  local time_elapsed = t - b.t0
-  b.x = b.x0 + b.dx * time_elapsed
-  b.y = b.y0 + b.dy * time_elapsed
+function move_ball(b, t)
+  local dt = t - b.t0
+  b.x = b.x0 + b.dx * dt
+  b.y = b.y0 + b.dy * dt
+  local hit_wall = false 
   if b.y < 0 then
-    b.y, b.dy = 0, -b.dy
-    sync_ball_state(b, t) 
+    if phys_ball_wall_y(b, 0, 1) then
+      hit_wall = true
+    end
   end
   if VIRTUAL_H < b.y + BALL_SIZE then
-    b.y, b.dy = VIRTUAL_H - BALL_SIZE, -b.dy
-    sync_ball_state(b, t) 
+    local y = VIRTUAL_H - BALL_SIZE
+    if phys_ball_wall_y(b, y, -1) then
+      hit_wall = true
+    end
   end
+  if hit_wall then
+    sync_ball_state(b, t)
+    sfx.knock()
+  end
+  return check_scored(b.x)
 end
 
+-- collision and score
 function scored(side)
   local s = S.score
   s[side] = s[side] + 1
@@ -236,13 +265,13 @@ function scored(side)
   return false
 end
 
-function reset_ball(t) 
+function reset_ball(t)
   local b = S.ball
-  local target_x = VIRTUAL_W / 6
-  b.x = target_x - BALL_SIZE / 2
+  b.x = VIRTUAL_W / 6 - BALL_SIZE / 2
   b.y = (VIRTUAL_H - BALL_SIZE) / 2
-  b.dx, b.dy = 0, 0
-  sync_ball_state(b, t) 
+  b.dx = 0
+  b.dy = 0
+  sync_ball_state(b, t)
 end
 
 -- control and update
@@ -260,18 +289,18 @@ function key_actions.start.space()
 end
 
 function key_actions.start.e()
-  set_strategy("easy"); 
+  set_strategy("easy")
   sfx.toggle()
 end
 
 function key_actions.start.h()
-  set_strategy("hard"); 
+  set_strategy("hard")
   sfx.toggle()
 end
 
 key_actions.start["1"] = function()
-  if S.strategy.fn ~= strategy.easy then 
-    set_strategy("hard") 
+  if S.strategy.fn ~= strategy.easy then
+    set_strategy("hard")
   end
   sfx.toggle()
 end
@@ -286,73 +315,94 @@ function key_actions.play.r()
   S.score.opp = 0
   rebuild_score_texts()
   layout()
-  reset_ball(love.timer.getTime())
   S.state = "start"
   love.mouse.setRelativeMode(false)
 end
+
 key_actions.gameover.space = key_actions.play.r
+
 for name in pairs(key_actions) do
   key_actions[name].escape = love.event.quit
 end
 
 function love.keypressed(k)
   local action = key_actions[S.state][k]
-  if action then action() end
+  if action then
+    action()
+  end
+end
+
+PLAYER_KEYS_Y = {
+  { "q", -1 },  
+  { "a",  1 }   
+}
+PLAYER_KEYS_X = {
+  { "s", -1 },  
+  { "d",  1 }  
+}
+
+function dir_from_keys(keys)
+  for i, kv in ipairs(keys) do
+    if love.keyboard.isDown(kv[1]) then
+      return kv[2]
+    end
+  end
+  return 0
 end
 
 function update_player(dt)
-  if not S.player.mouse_moved then 
-    S.player.dx = 0
-    S.player.dy = 0 
-  end
-  local tx, ty = 0, 0
-  for k, d in pairs(INPUT_P1) do
-    if love.keyboard.isDown(k) then 
-      tx = tx + d.x
-      ty = ty + d.y 
+  local dy = dir_from_keys(PLAYER_KEYS_Y)
+  local dx = dir_from_keys(PLAYER_KEYS_X)
+  S.player.dx = 0
+  S.player.dy = 0
+  if dx ~= 0 or dy ~= 0 then
+  move_paddle(S.player, dx, dy, dt) 
+  mouse_frame_dx, mouse_frame_dy = 0, 0
+  elseif mouse_enabled then
+    if dt > 0 then
+      S.player.dx = (mouse_frame_dx * MOUSE_SENSITIVITY) / dt
+      S.player.dy = (mouse_frame_dy * MOUSE_SENSITIVITY) / dt
     end
+    S.player.x = S.player.x + mouse_frame_dx * MOUSE_SENSITIVITY
+    S.player.y = S.player.y + mouse_frame_dy * MOUSE_SENSITIVITY
+    clamp_paddle(S.player)
+    mouse_frame_dx = 0
+    mouse_frame_dy = 0
   end
-  if tx ~= 0 or ty ~= 0 then
-    S.player.dx = tx * PADDLE_SPEED
-    S.player.dy = ty * PADDLE_SPEED
-  end
-  S.player.mouse_moved = false
-  apply_velocity(S.player, dt)
-  clamp_paddle(S.player, true)
 end
 
-function love.mousemoved(x, y, dx, dy)
-  if S.state ~= "play" then 
+function love.mousemoved(x, y, dx, dy, istouch)
+  if not mouse_enabled or istouch
+       or S.state ~= "play"
+  then
     return 
   end
-  local dt = love.timer.getDelta()
-  if dt == 0 then 
-    return 
-  end 
-  S.player.dx = dx * MOUSE_SENSITIVITY / dt
-  S.player.dy = dy * MOUSE_SENSITIVITY / dt
-  S.player.mouse_moved = true
+  mouse_frame_dx = mouse_frame_dx + dx
+  mouse_frame_dy = mouse_frame_dy + dy
 end
 
 -- main step/update
-function try_hit(ball, paddle, t)
-  if Physics.resolve_collision(ball, paddle) then
-    sync_ball_state(ball, t)
-    return true
+function step_ball(b, dt, t)
+  local ta, ax, ay = phys_hit_paddle(b, S.player, dt)
+  local tb, bx, by = phys_hit_paddle(b, S.opp, dt)
+  local paddle, th, nx, ny = nil, nil, 0, 0
+  if ta and (not tb or ta <= tb) then
+    paddle, th, nx, ny = S.player, ta, ax, ay
+  elseif tb then
+    paddle, th, nx, ny = S.opp, tb, bx, by
   end
-  return false
-end
-
-function step_ball(b, t)
+  if th then
+    b.x = b.x + b.dx * th
+    b.y = b.y + b.dy * th
+    if phys_reflect(b, paddle, nx, ny) then
+      sync_ball_state(b, (t - dt) + th)
+      sfx.shot()
+    end
+  end
   move_ball(b, t)
-  local hit_p = try_hit(b, S.player, t)
-  local hit_o = try_hit(b, S.opp, t)
-  if hit_p or hit_o then
-    sfx.shot()
-  end
 end
 
-function handle_score(t)
+function handle_score(t) 
   local side = check_scored(S.ball.x)
   if side then
     scored(side)
@@ -362,17 +412,23 @@ function handle_score(t)
   return false
 end
 
-function love.update(dt)
-  if not inited then 
-    do_init() 
-  end 
-  if S.state ~= "play" then 
+function step_game(dt, t) 
+  if S.state ~= "play" then
     return 
   end
-  update_player(dt)
-  S.strategy.fn(S, dt)
-  step_ball(S.ball, love.timer.getTime())
-  handle_score(love.timer.getTime()) 
+  local sdt = dt * SPEED_SCALE
+  update_player(sdt)
+  S.strategy.fn(S, sdt)
+  step_ball(S.ball, sdt, t)
+  handle_score(t) 
+end
+
+function love.update(dt)
+  ensure_init()
+  local now = love.timer.getTime()
+  local rdt = now - time_t
+  time_t = now
+  step_game(rdt, now)
 end
 
 -- drawing
@@ -394,18 +450,16 @@ function draw_scores()
   gfx.draw(texts.score_r, VIRTUAL_W / 2 + 40, SCORE_OFFSET_Y)
 end
 
-function draw_centered(text_obj, percent_y)
-  if text_obj then
-    local x = (VIRTUAL_W - text_obj:getWidth()) / 2
-    local y = percent_y * VIRTUAL_H - text_obj:getHeight() / 2
-    gfx.draw(text_obj, x, y)
+function draw_state_text(t, p)
+  if t then
+    local y = p * VIRTUAL_H - t:getHeight() / 2
+    gfx.draw(t, (VIRTUAL_W - t:getWidth()) / 2, y)
   end
 end
-
 function draw_state_texts(s)
-  draw_centered(texts[s], 0.4)
+  draw_state_text(texts[s], 0.4)
   if s == "start" then
-    draw_centered(S.strategy.text, 0.6)
+    draw_state_text(S.strategy.text, 0.6)
   end
 end
 
