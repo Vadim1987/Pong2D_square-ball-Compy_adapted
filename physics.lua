@@ -1,103 +1,84 @@
 -- physics.lua
 
-PHYS_ZERO_PADDLE = {
-  dx = 0,
-  dy = 0,
-  x = 0, 
-  y = 0  
+vec = { }
+vec.__index = vec
+
+-- Vectors
+function V(x, y)
+  return setmetatable({x = x, y = y}, vec)
+end
+
+function vec.__add(a, b) 
+  return V(a.x + b.x, a.y + b.y) 
+end
+
+function vec.__sub(a, b) 
+  return V(a.x - b.x, a.y - b.y) 
+end
+
+function vec.__mul(v, s) 
+  return V(v.x * s, v.y * s) 
+end 
+
+function dot(a, b)
+  return a.x * b.x + a.y * b.y
+end
+
+AXES = {
+  {
+  "x", 
+  "y", 
+  PADDLE.w, 
+  PADDLE.h
+},
+  {
+  "y", 
+  "x", 
+  PADDLE.h, 
+  PADDLE.w
+}
 }
 
-function phys_dot(ax, ay, bx, by)
-  return ax * bx + ay * by
+function solve(b, p, p_old, dt, ax, ay, size_m, size_o)
+  local rv = V(b.dx, b.dy) - V(p.dx, p.dy)
+  if rv[ax] == 0 then 
+    return nil 
+  end
+  local off = (rv[ax] > 0) and -BALL.size or size_m
+  local t = (p_old[ax] + off - b[ax]) / rv[ax]
+  if t < 0 or t > dt 
+   then return nil 
+  end
+  local op = b[ay] + rv[ay] * t
+  if op + BALL.size < p_old[ay] or 
+     p_old[ay] + size_o < op then
+    return nil 
+  end
+  local n = (rv[ax] > 0) and -1 or 1
+  return t, (ax=="x" and n or 0), (ax=="y" and n or 0)
 end
 
-function phys_reflect(ball, paddle, nx, ny)
-  local rvx = ball.dx - paddle.dx
-  local rvy = ball.dy - paddle.dy
-  local vn = phys_dot(rvx, rvy, nx, ny)
-  if vn >= 0 then
-    return false
+function detect(b, p, dt)
+  local v_p = V(p.dx, p.dy)
+  local pos_old = V(p.x, p.y) - (v_p * dt)
+  local best_t, best_nx, best_ny 
+  for _, c in ipairs(AXES) do
+    local ax, ay, sz_m, sz_o = c[1], c[2], c[3], c[4]
+    local t, nx, ny = solve(b, p, pos_old, dt, ax, ay, sz_m, sz_o)
+    if t and (not best_t or t < best_t) then
+      best_t, best_nx, best_ny = t, nx, ny
+    end
   end
-  ball.dx = ball.dx - 2 * vn * nx
-  ball.dy = ball.dy - 2 * vn * ny
-  return true
+  return best_t, best_nx, best_ny
 end
 
-function phys_hit_paddle_x(ball, paddle, psx, psy, dt)
-  local rvx = ball.dx - paddle.dx
-  if rvx == 0 then
-    return nil
+function resolve(b, p, nx, ny)
+  local v_b, v_p = V(b.dx, b.dy), V(p.dx, p.dy)
+  local n, rel = V(nx, ny), v_b - v_p
+  local vn = dot(rel, n)
+   if vn >= 0 then 
+    return 
   end
-  local px = psx
-  if rvx > 0 then
-    px = px - BALL_SIZE
-  else
-    px = px + PADDLE_WIDTH
-  end
-  local t = (px - ball.x) / rvx
-  if t < 0 or t > dt then
-    return nil
-  end
-  local y_at_t = ball.y + (ball.dy - paddle.dy) * t
-  if y_at_t + BALL_SIZE < psy or
-     psy + PADDLE_HEIGHT < y_at_t then
-    return nil
-  end
-  local nx = (rvx > 0) and -1 or 1
-  return t, nx, 0
-end
-
-function phys_hit_paddle_y(ball, paddle, psx, psy, dt)
-  local rvy = ball.dy - paddle.dy
-  if rvy == 0 then
-    return nil
-  end
-  local py = psy
-  if rvy > 0 then
-    py = py - BALL_SIZE
-  else
-    py = py + PADDLE_HEIGHT
-  end
-  local t = (py - ball.y) / rvy
-  if t < 0 or t > dt then
-    return nil
-  end
-  local x_at_t = ball.x + (ball.dx - paddle.dx) * t
-  if x_at_t + BALL_SIZE < psx or
-     psx + PADDLE_WIDTH < x_at_t then
-    return nil
-  end
-  local ny = (rvy > 0) and -1 or 1
-  return t, 0, ny
-end
-
-function phys_hit_paddle(ball, paddle, dt)
-  local psx = paddle.x - paddle.dx * dt
-  local psy = paddle.y - paddle.dy * dt
-  local tx, nx, ny = phys_hit_paddle_x(
-    ball,
-    paddle,
-    psx,
-    psy,
-    dt
-  )
-  local ty, mx, my = phys_hit_paddle_y(
-    ball,
-    paddle,
-    psx,
-    psy,
-    dt
-  )
-  if not tx then
-    return ty, mx, my
-  end
-  if not ty or tx < ty then
-    return tx, nx, ny
-  end
-  return ty, mx, my
-end
-
-function phys_ball_wall_y(ball, y, ny)
-  ball.y = y
-  return phys_reflect(ball, PHYS_ZERO_PADDLE, 0, ny)
+  local new_v = v_b - (n * (2 * vn))
+  b.dx, b.dy = new_v.x, new_v.y
 end

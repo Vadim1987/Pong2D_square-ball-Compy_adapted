@@ -1,27 +1,57 @@
 -- constants.lua
--- static game parameters
-
-COLOR_BG = {
-  0,
-  0,
-  0
-}
-COLOR_FG = {
-  1,
-  1,
-  1
+COLORS = {
+  bg = {0, 0, 0},
+  fg = {1, 1, 1}
 }
 
-PADDLE_WIDTH = 10
-PADDLE_HEIGHT = 60
-PADDLE_SPEED = 180
-PADDLE_OFFSET_X = 0
+GAME = {
+  width = 640,
+  height = 480,
+  speed_scale = 1.5,
+  score_win = 10,
+  score_off_y = 20,
+  ai_deadzone = 4
+}
 
-BALL_SIZE = 10
-BALL_SPEED_X = 360
-BALL_SPEED_Y = 180
+GRID = {
+  width = 4,
+  dash = 10,
+  gap = 20
+}
 
-WIN_SCORE = 10
-SCORE_OFFSET_Y = 20
-AI_DEADZONE = 4
-REFLECT_TWICE = 2
+PADDLE = {
+  w = 10,
+  h = 60,
+  speed = 180,
+  off_x = 0
+}
+
+BALL = {
+  size = 10,
+  sx = 360, 
+  sy = 180
+}
+
+-- Calculations (local scope now)
+gh = GAME.height
+pw = PADDLE.w
+ph = PADDLE.h
+gw = GAME.width
+pox = PADDLE.off_x
+
+LAYOUT = {
+  pad_start_y = (gh - ph) / 2,
+  serve_off_x = gw / 6
+}
+
+LIMITS = {
+  player = { 
+    min = pox, 
+    max = (gw / 4) - pw 
+  },
+  opp = { 
+    min = gw - (gw / 4), 
+    max = (gw - pox) - pw 
+  },
+  y_max = gh - ph
+}

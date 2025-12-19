@@ -1,46 +1,32 @@
 -- strategy.lua
--- opponent behavior module
 
 strategy = { }
 
--- fast AI (hard)
-function strategy.hard(S, dt)
-  local c = S.opp.y + PADDLE_HEIGHT / 2
-  local by = S.ball.y + BALL_SIZE / 2
-  local d = by - c
-  if math.abs(d) < AI_DEADZONE then
-    S.opp.dy = 0
+-- Hard AI
+function strategy.hard(p, ball, dt)
+  local cy = p.y + p.h / 2
+  local by = ball.y + ball.w / 2
+  local diff = by - cy
+  local deadzone = GAME.ai_deadzone
+  if math.abs(diff) < deadzone then
+    p.dy = 0
   else
-    local dir = (0 < d) and 1 or -1
-    move_paddle(S.opp, 0, dir, dt)
+    local dir = (0 < diff) and 1 or -1
+    p.dy = PADDLE.speed * dir
   end
 end
 
--- slow AI (easy)
-function strategy.easy(S, dt)
-  local c = S.opp.y + PADDLE_HEIGHT / 2
-  local by = S.ball.y + BALL_SIZE / 2
-  local d = by - c
-  if math.abs(d) < AI_DEADZONE then
-    S.opp.dy = 0
-  else
-    local dir = (0 < d) and 1 or -1
-    move_paddle(S.opp, 0, dir, dt)
-  end
+-- Easy AI
+function strategy.easy(p, ball, dt)
+  strategy.hard(p, ball, dt)
+  p.dy = p.dy * 0.6
 end
 
--- Manual (second player)
-function strategy.manual(S, dt)
-  local dx, dy = 0, 0
-  if love.keyboard.isDown("left") then
-    dx = -1
-  elseif love.keyboard.isDown("right") then
-    dx = 1
-  end
-  if love.keyboard.isDown("up") then
-    dy = -1
-  elseif love.keyboard.isDown("down") then
-    dy = 1
-  end
-  move_paddle_xy(S.opp, dx, dy, dt)
+-- Manual AI
+function strategy.manual(p, ball, dt)
+  local k = love.keyboard.isDown
+  local dx = (k("right") and 1 or 0) - (k("left") and 1 or 0)
+  local dy = (k("down")  and 1 or 0) - (k("up")   and 1 or 0)
+  p.dx = PADDLE.speed * dx
+  p.dy = PADDLE.speed * dy
 end
