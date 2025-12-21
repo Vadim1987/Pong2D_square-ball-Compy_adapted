@@ -1,7 +1,17 @@
 -- constants.lua
+-- Configuration and Layout
+
 COLORS = {
-  bg = {0, 0, 0},
-  fg = {1, 1, 1}
+  bg = {
+    0,
+    0,
+    0
+  },
+  fg = {
+    1,
+    1,
+    1
+  }
 }
 
 GAME = {
@@ -28,30 +38,25 @@ PADDLE = {
 
 BALL = {
   size = 10,
-  sx = 360, 
+  sx = 360,
   sy = 180
 }
 
--- Calculations (local scope now)
-gh = GAME.height
-pw = PADDLE.w
-ph = PADDLE.h
-gw = GAME.width
-pox = PADDLE.off_x
+-- Dynamic geometry of the game field
 
 LAYOUT = {
-  pad_start_y = (gh - ph) / 2,
-  serve_off_x = gw / 6
+  pad_start_y = (GAME.height - PADDLE.h) / 2,
+  serve_off_x = GAME.width / 6
 }
 
 LIMITS = {
-  player = { 
-    min = pox, 
-    max = (gw / 4) - pw 
+  player = {
+    min = PADDLE.off_x,
+    max = (GAME.width / 4) - PADDLE.w
   },
-  opp = { 
-    min = gw - (gw / 4), 
-    max = (gw - pox) - pw 
+  opp = {
+    min = GAME.width - (GAME.width / 4),
+    max = (GAME.width - PADDLE.off_x) - PADDLE.w
   },
-  y_max = gh - ph
+  y_max = GAME.height - PADDLE.h
 }
