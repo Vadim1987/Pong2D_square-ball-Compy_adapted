@@ -200,6 +200,7 @@ function update_pads(dt)
 end
 
 --  Physics Loop 
+
 function find_collision(dt)
   local best = { time = nil }
   for _, p in ipairs(GS.paddles) do
@@ -216,14 +217,10 @@ function find_collision(dt)
   return best
 end
 
-function apply_force(col)
-  resolve(GS.ball, col.paddle, col.nx, col.ny)
-end
-
 function process_collision(col, t_sim)
   local t_imp = t_sim + col.time
   move_ball_time(t_imp)
-  apply_force(col)
+  resolve(GS.ball, col.paddle, col.nx, col.ny)
   audio.shot()
   sync_phys(t_imp)
 end
@@ -328,6 +325,7 @@ function actions.play.r()
 end
 
 actions.over.space = actions.play.r
+
 for k, v in pairs(actions) do
   v.escape = love.event.quit
 end
@@ -405,8 +403,9 @@ function love.mousemoved(x, y, dx, dy)
 end
 
 function love.keypressed(k)
-  if actions[GS.mode] and actions[GS.mode][k] then
-    actions[GS.mode][k]()
+  local action = actions[GS.mode][k]
+  if action then
+    action()
   end
 end
 
