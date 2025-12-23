@@ -1,65 +1,90 @@
 -- physics.lua
 
--- 1. Helper: Extract state (pos, size, vel) for a specific axis
+-- 0. TOOLS (Getters)
 
-function get_axis_state(obj, ax, dt)
-  local is_x = (ax == "x")
-  local vel = is_x and obj.dx or obj.dy
-  local sz = is_x and obj.w or obj.h
-  return obj[ax] - vel * dt, sz, vel
+function get_x_axis(obj)
+  return obj.x, obj.w, obj.dx
 end
 
--- 2. Logic: Calculate distance to impact (Gap)
+function get_y_axis(obj)
+  return obj.y, obj.h, obj.dy
+end
 
-function get_impact_dist(b_pos, b_sz, p_pos, p_sz, v_rel)
-  if 0 < v_rel then
-    return p_pos - (b_pos + b_sz)
+-- HELPER: PREDICT
+
+function predict(obj, getter, time_offset)
+  local pos, size, vel = getter(obj)
+  return pos + vel * time_offset, size, vel
+end
+
+-- STEP 1: START POSITIONS
+
+function get_start_state(ball, pad, getter, dt)
+  local b_pos, b_size, b_vel = predict(ball, getter, -dt)
+  local p_pos, p_size, p_vel = predict(pad, getter, -dt)
+  return b_pos, b_size, b_vel, p_pos, p_size, p_vel
+end
+
+-- STEP 2: MEASURE GAPS
+
+function get_gaps(pos_a, size_a, pos_b, size_b)
+  return pos_b - (pos_a + size_a), (pos_b + size_b) - pos_a
+end
+
+-- STEP 3: CALCULATE TIME
+
+function select_gap(gap_front, gap_back, velocity)
+  if 0 < velocity then
+    return gap_front
   end
-  if v_rel < 0 then
-    return (p_pos + p_sz) - b_pos
+  if velocity < 0 then
+    return gap_back
   end
   return nil
 end
 
--- 3. Logic: Calculate Time of Impact (TOI)
-
-function calc_time(dist, v_rel, dt)
-  if not dist then
+function calc_time(distance, velocity, dt)
+  if not distance then
     return nil
   end
-  local t = dist / v_rel
-  return (0 <= t and t <= dt) and t or nil
+  local time = distance / velocity
+  return (0 <= time and time <= dt) and time or nil
 end
 
--- 4. Logic: Verify overlap on the orthogonal axis
-
-function verify_orth(ball, pad, orth, t, dt)
-  local b_pos, b_sz, b_v = get_axis_state(ball, orth, dt)
-  local p_pos, p_sz, p_v = get_axis_state(pad, orth, dt)
-  local b_fut, p_fut = b_pos + b_v * t, p_pos + p_v * t
-  return b_fut < p_fut + p_sz and p_fut < b_fut + b_sz
-end
-
--- 5a. Helper: Calculate potential Time & Velocity on main axis
-
-function calc_axis_impact(ball, pad, ax, dt)
-  local b_pos, b_sz, b_v = get_axis_state(ball, ax, dt)
-  local p_pos, p_sz, p_v = get_axis_state(pad, ax, dt)
-  local v_rel = b_v - p_v
-  local dist = get_impact_dist(b_pos, b_sz, p_pos, p_sz, v_rel)
+-- STEP 4: CALCULATE AXIS IMPACT
+function calc_axis_impact(ball, pad, getter, dt)
+  local b_pos, b_size, b_vel, p_pos, p_size, p_vel = 
+      get_start_state(ball, pad, getter, dt)
+  local v_rel = b_vel - p_vel
+  local gap_front, gap_back = get_gaps(
+    b_pos,
+    b_size,
+    p_pos,
+    p_size
+  )
+  local dist = select_gap(gap_front, gap_back, v_rel)
   return calc_time(dist, v_rel, dt), v_rel
 end
 
--- 5b. Coordinator: Verify collision on specific Axis
+-- STEP 5: VERIFY OVERLAP
 
-function check_axis(ball, pad, ax, orth, dt)
-  local t, v_rel = calc_axis_impact(ball, pad, ax, dt)
-  if t and verify_orth(ball, pad, orth, t, dt) then
-    return t, (0 < v_rel and -1 or 1)
-  end
+function verify_overlap(ball, pad, other_getter, time)
+  local b_pos, b_size = predict(ball, other_getter, time)
+  local p_pos, p_size = predict(pad, other_getter, time)
+  return b_pos < p_pos + p_size and p_pos < b_pos + b_size
 end
 
--- 6a. Helper: Pick the earliest collision (Winner takes all)
+-- STEP 6: BOUNCE
+
+function bounce(ball, pad, nx, ny)
+  local rvx = ball.dx - pad.dx
+  local rvy = ball.dy - pad.dy
+  local dot = (rvx * nx) + (rvy * ny)
+  ball.dx = ball.dx - (2 * dot * nx)
+  ball.dy = ball.dy - (2 * dot * ny)
+end
+
+-- FINAL: PICK WINNER
 
 function pick_earliest(tx, nx, ty, ny)
   if ty and (not tx or ty < tx) then
@@ -70,21 +95,20 @@ function pick_earliest(tx, nx, ty, ny)
   end
 end
 
--- 6b. Main Detect Function
+-- MAIN DETECT PIPELINE
 
 function detect(ball, pad, dt)
-  local tx, nx = check_axis(ball, pad, "x", "y", dt)
-  local ty, ny = check_axis(ball, pad, "y", "x", dt)
+  local tx, vx = calc_axis_impact(ball, pad, get_x_axis, dt)
+  if tx and not verify_overlap(ball, pad, get_y_axis, tx - dt)
+       then
+    tx = nil
+  end
+  local nx = tx and ((0 < vx) and -1 or 1) or 0
+  local ty, vy = calc_axis_impact(ball, pad, get_y_axis, dt)
+  if ty and not verify_overlap(ball, pad, get_x_axis, ty - dt)
+       then
+    ty = nil
+  end
+  local ny = ty and ((0 < vy) and -1 or 1) or 0
   return pick_earliest(tx, nx, ty, ny)
-end
-
--- Resolve Bounce
-
-function resolve(ball, pad, nx, ny)
-  if nx ~= 0 then
-    ball.dx = (2 * pad.dx) - ball.dx
-  end
-  if ny ~= 0 then
-    ball.dy = (2 * pad.dy) - ball.dy
-  end
 end

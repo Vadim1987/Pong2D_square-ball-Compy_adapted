@@ -175,18 +175,23 @@ end
 
 function process_input(dt)
   local p = GS.player
-  if GS.input == "mouse" then
-    p.dx = GS.mouse.x / dt
-    p.dy = GS.mouse.y / dt
-    GS.mouse.x, GS.mouse.y = 0, 0
+  local k = love.keyboard.isDown
+  local key_dy = (k("a") and 1 or 0) - (k("q") and 1 or 0)
+  local key_dx = (k("d") and 1 or 0) - (k("s") and 1 or 0)
+  if key_dx ~= 0 or key_dy ~= 0 then
+    GS.input = "keyboard"
+    p.dx = key_dx * PADDLE.speed
+    p.dy = key_dy * PADDLE.speed
   else
-    local k = love.keyboard.isDown
-    local dy = (k("a") and 1 or 0) - (k("q") and 1 or 0)
-    local dx = (k("d") and 1 or 0) - (k("s") and 1 or 0)
-    p.dx = dx * PADDLE.speed
-    p.dy = dy * PADDLE.speed
+    if GS.mouse.x ~= 0 or GS.mouse.y ~= 0 then
+      GS.input = "mouse"
+      p.dx = GS.mouse.x / dt
+      p.dy = GS.mouse.y / dt
+      GS.mouse.x, GS.mouse.y = 0, 0 
+    end
   end
 end
+
 
 function update_pads(dt)
   GS.player.dx, GS.player.dy = 0, 0
@@ -220,7 +225,7 @@ end
 function process_collision(col, t_sim)
   local t_imp = t_sim + col.time
   move_ball_time(t_imp)
-  resolve(GS.ball, col.paddle, col.nx, col.ny)
+  bounce(GS.ball, col.paddle, col.nx, col.ny)
   audio.shot()
   sync_phys(t_imp)
 end
