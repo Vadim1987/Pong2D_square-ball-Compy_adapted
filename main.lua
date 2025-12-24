@@ -5,7 +5,7 @@ require("constants")
 require("physics")
 require("strategy")
 
-audio = compy.audio
+sfx = compy.audio
 gfx = love.graphics
 timer = love.timer
 
@@ -30,43 +30,55 @@ GS.score = {
   player = 0,
   opponent = 0
 }
+
 GS.mouse = {
   x = 0,
   y = 0
 }
 GS.ai = strategy.hard
 
---  Entities 
+-- Entities (Unified Vectors: pos, vel, size)
 
 GS.player = {
-  x = 0,
-  y = 0,
-  dx = 0,
-  dy = 0,
-  w = PADDLE.w,
-  h = PADDLE.h,
+  pos = {
+    x = 0,
+    y = 0
+  },
+  vel = {
+    x = 0,
+    y = 0
+  },
+  size = PADDLE.size,
   limits = LIMITS.player
 }
 
 GS.opponent = {
-  x = 0,
-  y = 0,
-  dx = 0,
-  dy = 0,
-  w = PADDLE.w,
-  h = PADDLE.h,
+  pos = {
+    x = 0,
+    y = 0
+  },
+  vel = {
+    x = 0,
+    y = 0
+  },
+  size = PADDLE.size,
   limits = LIMITS.opp
 }
 
 GS.ball = {
-  x = 0,
-  y = 0,
-  dx = 0,
-  dy = 0,
-  w = BALL.size,
-  h = BALL.size,
-  sx = 0,
-  sy = 0,
+  pos = {
+    x = 0,
+    y = 0
+  },
+  vel = {
+    x = 0,
+    y = 0
+  },
+  size = BALL.size,
+  snapshot = {
+    x = 0,
+    y = 0
+  },
   st = 0
 }
 
@@ -75,7 +87,7 @@ GS.paddles = {
   GS.opponent
 }
 
---  Helpers 
+-- Helpers 
 
 function update_scale()
   local w, h = gfx.getDimensions()
@@ -86,29 +98,31 @@ end
 
 function sync_phys(now)
   local b = GS.ball
-  b.sx, b.sy, b.st = b.x, b.y, now
+  b.snapshot.x = b.pos.x
+  b.snapshot.y = b.pos.y
+  b.st = now
 end
 
 function move_ball_time(t_target)
   local b = GS.ball
   local dt = t_target - b.st
-  b.x = b.sx + b.dx * dt
-  b.y = b.sy + b.dy * dt
+  b.pos.x = b.snapshot.x + b.vel.x * dt
+  b.pos.y = b.snapshot.y + b.vel.y * dt
 end
 
-function reset_ball_pos()
+function reset_ball_pos(serve_vector)
   local b = GS.ball
-  b.x = LAYOUT.serve_off_x - (b.w / 2)
-  b.y = (GAME.height - b.h) / 2
-  b.dx, b.dy = 0, 0
+  local serve = serve_vector or LAYOUT.serve_pos_player
+  b.pos.x = serve.x
+  b.pos.y = serve.y
+  b.vel.x, b.vel.y = 0, 0
 end
 
 function get_strat_name()
-  local ai = GS.ai
-  if ai == strategy.hard then
+  if GS.ai == strategy.hard then
     return "1 Player (hard)"
   end
-  if ai == strategy.easy then
+  if GS.ai == strategy.easy then
     return "1 Player (easy)"
   end
   return "2 Players (keyboard)"
@@ -121,11 +135,11 @@ function update_ui()
 end
 
 function reset_round(now)
-  GS.player.x = LIMITS.player.min
-  GS.player.y = LAYOUT.pad_start_y
-  GS.opponent.x = LIMITS.opp.max
-  GS.opponent.y = LAYOUT.pad_start_y
-  reset_ball_pos()
+  GS.player.pos.x = LIMITS.player.min
+  GS.player.pos.y = LAYOUT.pad_start_y
+  GS.opponent.pos.x = LIMITS.opp.max
+  GS.opponent.pos.y = LAYOUT.pad_start_y
+  reset_ball_pos(LAYOUT.serve_pos_player)
   sync_phys(now)
 end
 
@@ -169,8 +183,11 @@ end
 -- Logic 
 
 function constrain(p)
-  p.y = math.max(0, math.min(p.y, LIMITS.y_max))
-  p.x = math.max(p.limits.min, math.min(p.x, p.limits.max))
+  p.pos.y = math.max(0, math.min(p.pos.y, LIMITS.y_max))
+  p.pos.x = math.max(
+    p.limits.min,
+    math.min(p.pos.x, p.limits.max)
+  )
 end
 
 function process_input(dt)
@@ -180,31 +197,30 @@ function process_input(dt)
   local key_dx = (k("d") and 1 or 0) - (k("s") and 1 or 0)
   if key_dx ~= 0 or key_dy ~= 0 then
     GS.input = "keyboard"
-    p.dx = key_dx * PADDLE.speed
-    p.dy = key_dy * PADDLE.speed
+    p.vel.x = key_dx * PADDLE.speed
+    p.vel.y = key_dy * PADDLE.speed
   else
     if GS.mouse.x ~= 0 or GS.mouse.y ~= 0 then
       GS.input = "mouse"
-      p.dx = GS.mouse.x / dt
-      p.dy = GS.mouse.y / dt
+      p.vel.x = GS.mouse.x / dt
+      p.vel.y = GS.mouse.y / dt
       GS.mouse.x, GS.mouse.y = 0, 0 
     end
   end
 end
 
-
 function update_pads(dt)
-  GS.player.dx, GS.player.dy = 0, 0
+  GS.player.vel.x, GS.player.vel.y = 0, 0
   process_input(dt)
   GS.ai(GS.opponent, GS.ball, dt)
   for _, p in ipairs(GS.paddles) do
-    p.x = p.x + p.dx * dt
-    p.y = p.y + p.dy * dt
+    p.pos.x = p.pos.x + p.vel.x * dt
+    p.pos.y = p.pos.y + p.vel.y * dt
     constrain(p)
   end
 end
 
---  Physics Loop 
+-- Physics Loop 
 
 function find_collision(dt)
   local best = { time = nil }
@@ -226,18 +242,18 @@ function process_collision(col, t_sim)
   local t_imp = t_sim + col.time
   move_ball_time(t_imp)
   bounce(GS.ball, col.paddle, col.nx, col.ny)
-  audio.shot()
+  sfx.shot()
   sync_phys(t_imp)
 end
 
 function check_bounds(now)
   local b = GS.ball
-  local y_lim = GAME.height - b.h
-  if b.y < 0 or b.y > y_lim then
-    b.y = math.max(0, math.min(b.y, y_lim))
-    b.dy = -b.dy 
+  local y_lim = GAME.height - b.size.y
+  if b.pos.y < 0 or y_lim < b.pos.y then
+    b.pos.y = math.max(0, math.min(b.pos.y, y_lim))
+    b.vel.y = -b.vel.y
     sync_phys(now)
-    audio.knock()
+    sfx.knock()
   end
 end
 
@@ -246,7 +262,7 @@ end
 function handle_game_over()
   GS.mode = "over"
   GS.assets.text_info:set("Game Over")
-  audio.gameover()
+  sfx.gameover()
   love.mouse.setRelativeMode(false)
 end
 
@@ -256,13 +272,13 @@ function process_win(win, now)
   if GAME.score_win <= GS.score[win] then
     handle_game_over()
   else
-    audio.win()
+    sfx.win()
     reset_round(now)
   end
 end
 
 function check_score(now)
-  local x = GS.ball.x
+  local x = GS.ball.pos.x
   local win = nil
   if x < 0 then
     win = "opponent"
@@ -299,7 +315,7 @@ function actions.start.space()
   GS.mode = "play"
   love.mouse.setRelativeMode(true)
   reset_round(timer.getTime())
-  audio.beep()
+  sfx.beep()
 end
 
 actions.start["e"] = function()
@@ -307,7 +323,7 @@ actions.start["e"] = function()
   GS.ai = is_h and strategy.easy or strategy.hard
   GS.input = "mouse"
   update_ui()
-  audio.toggle()
+  sfx.toggle()
 end
 
 actions.start["1"] = actions.start["e"]
@@ -316,7 +332,7 @@ actions.start["2"] = function()
   GS.ai = strategy.manual
   GS.input = "keyboard"
   update_ui()
-  audio.toggle()
+  sfx.toggle()
 end
 
 function actions.play.r()
@@ -340,10 +356,10 @@ end
 function draw_objs()
   gfx.draw(GS.assets.canvas, 0, 0)
   for _, p in ipairs(GS.paddles) do
-    gfx.rectangle("fill", p.x, p.y, p.w, p.h)
+    gfx.rectangle("fill", p.pos.x, p.pos.y, p.size.x, p.size.y)
   end
   local b = GS.ball
-  gfx.rectangle("fill", b.x, b.y, b.w, b.h)
+  gfx.rectangle("fill", b.pos.x, b.pos.y, b.size.x, b.size.y)
 end
 
 function draw_scores()
@@ -383,8 +399,8 @@ function love.update(dt)
   end
   local now = timer.getTime()
   local sdt = dt * GAME.speed_scale
-  update_pads(sdt)
   update_ball(sdt, now)
+  update_pads(sdt)
 end
 
 function love.draw()

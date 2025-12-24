@@ -1,27 +1,23 @@
 -- physics.lua
 
--- 0. TOOLS (Getters)
+-- 0. TOOLS
 
-function get_x_axis(obj)
-  return obj.x, obj.w, obj.dx
-end
-
-function get_y_axis(obj)
-  return obj.y, obj.h, obj.dy
+function get_axis(obj, axis)
+  return obj.pos[axis], obj.size[axis], obj.vel[axis]
 end
 
 -- HELPER: PREDICT
 
-function predict(obj, getter, time_offset)
-  local pos, size, vel = getter(obj)
+function predict(obj, getter, axis, time_offset)
+  local pos, size, vel = getter(obj, axis)
   return pos + vel * time_offset, size, vel
 end
 
 -- STEP 1: START POSITIONS
 
-function get_start_state(ball, pad, getter, dt)
-  local b_pos, b_size, b_vel = predict(ball, getter, -dt)
-  local p_pos, p_size, p_vel = predict(pad, getter, -dt)
+function get_start_state(ball, pad, getter, axis, dt)
+  local b_pos, b_size, b_vel = getter(ball, axis)
+  local p_pos, p_size, p_vel = getter(pad, axis)
   return b_pos, b_size, b_vel, p_pos, p_size, p_vel
 end
 
@@ -52,9 +48,10 @@ function calc_time(distance, velocity, dt)
 end
 
 -- STEP 4: CALCULATE AXIS IMPACT
-function calc_axis_impact(ball, pad, getter, dt)
+
+function calc_axis_impact(ball, pad, getter, axis, dt)
   local b_pos, b_size, b_vel, p_pos, p_size, p_vel = 
-      get_start_state(ball, pad, getter, dt)
+      get_start_state(ball, pad, getter, axis, dt)
   local v_rel = b_vel - p_vel
   local gap_front, gap_back = get_gaps(
     b_pos,
@@ -68,20 +65,20 @@ end
 
 -- STEP 5: VERIFY OVERLAP
 
-function verify_overlap(ball, pad, other_getter, time)
-  local b_pos, b_size = predict(ball, other_getter, time)
-  local p_pos, p_size = predict(pad, other_getter, time)
+function verify_overlap(ball, pad, getter, axis, time)
+  local b_pos, b_size = predict(ball, getter, axis, time)
+  local p_pos, p_size = predict(pad, getter, axis, time)
   return b_pos < p_pos + p_size and p_pos < b_pos + b_size
 end
 
 -- STEP 6: BOUNCE
 
 function bounce(ball, pad, nx, ny)
-  local rvx = ball.dx - pad.dx
-  local rvy = ball.dy - pad.dy
+  local rvx = ball.vel.x - pad.vel.x
+  local rvy = ball.vel.y - pad.vel.y
   local dot = (rvx * nx) + (rvy * ny)
-  ball.dx = ball.dx - (2 * dot * nx)
-  ball.dy = ball.dy - (2 * dot * ny)
+  ball.vel.x = ball.vel.x - (2 * dot * nx)
+  ball.vel.y = ball.vel.y - (2 * dot * ny)
 end
 
 -- FINAL: PICK WINNER
@@ -98,14 +95,14 @@ end
 -- MAIN DETECT PIPELINE
 
 function detect(ball, pad, dt)
-  local tx, vx = calc_axis_impact(ball, pad, get_x_axis, dt)
-  if tx and not verify_overlap(ball, pad, get_y_axis, tx - dt)
+  local tx, vx = calc_axis_impact(ball, pad, get_axis, "x", dt)
+  if tx and not verify_overlap(ball, pad, get_axis, "y", tx)
        then
     tx = nil
   end
   local nx = tx and ((0 < vx) and -1 or 1) or 0
-  local ty, vy = calc_axis_impact(ball, pad, get_y_axis, dt)
-  if ty and not verify_overlap(ball, pad, get_x_axis, ty - dt)
+  local ty, vy = calc_axis_impact(ball, pad, get_axis, "y", dt)
+  if ty and not verify_overlap(ball, pad, get_axis, "x", ty)
        then
     ty = nil
   end

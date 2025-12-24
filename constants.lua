@@ -2,16 +2,8 @@
 -- Configuration and Layout
 
 COLORS = {
-  bg = {
-    0,
-    0,
-    0
-  },
-  fg = {
-    1,
-    1,
-    1
-  }
+  bg = Color[Color.black],
+  fg = Color[Color.white + Color.bright]
 }
 
 GAME = {
@@ -30,33 +22,42 @@ GRID = {
 }
 
 PADDLE = {
-  w = 10,
-  h = 60,
+  size = {
+    x = 10,
+    y = 60
+  },
   speed = 180,
   off_x = 0
 }
 
-BALL = {
-  size = 10,
-  sx = 360,
-  sy = 180
-}
+BALL = { size = {
+  x = 10,
+  y = 10
+} }
 
--- Dynamic geometry of the game field
+-- Dynamic geometry
 
 LAYOUT = {
-  pad_start_y = (GAME.height - PADDLE.h) / 2,
-  serve_off_x = GAME.width / 6
+  pad_start_y = (GAME.height - PADDLE.size.y) / 2,
+  serve_pos_player = {
+    x = GAME.width / 6,
+    y = (GAME.height - BALL.size.y) / 2
+  }
+}
+
+LAYOUT.serve_pos_opp = {
+  x = (GAME.width - LAYOUT.serve_pos_player.x) - BALL.size.x,
+  y = LAYOUT.serve_pos_player.y
 }
 
 LIMITS = {
   player = {
     min = PADDLE.off_x,
-    max = (GAME.width / 4) - PADDLE.w
+    max = (GAME.width / 4) - PADDLE.size.x
   },
   opp = {
     min = GAME.width - (GAME.width / 4),
-    max = (GAME.width - PADDLE.off_x) - PADDLE.w
+    max = (GAME.width - PADDLE.off_x) - PADDLE.size.x
   },
-  y_max = GAME.height - PADDLE.h
+  y_max = GAME.height - PADDLE.size.y
 }
