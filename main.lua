@@ -191,21 +191,18 @@ function constrain(p)
 end
 
 function process_input(dt)
-  local p = GS.player
-  local k = love.keyboard.isDown
-  local key_dy = (k("a") and 1 or 0) - (k("q") and 1 or 0)
-  local key_dx = (k("d") and 1 or 0) - (k("s") and 1 or 0)
-  if key_dx ~= 0 or key_dy ~= 0 then
-    GS.input = "keyboard"
-    p.vel.x = key_dx * PADDLE.speed
-    p.vel.y = key_dy * PADDLE.speed
-  else
-    if GS.mouse.x ~= 0 or GS.mouse.y ~= 0 then
-      GS.input = "mouse"
-      p.vel.x = GS.mouse.x / dt
-      p.vel.y = GS.mouse.y / dt
-      GS.mouse.x, GS.mouse.y = 0, 0 
-    end
+  local p, k = GS.player, love.keyboard.isDown
+  local dy = (k("a") and 1 or 0) - (k("q") and 1 or 0)
+  local dx = (k("d") and 1 or 0) - (k("s") and 1 or 0)
+  if dx ~= 0 or dy ~= 0 then
+    GS.input, p.vel.x, p.vel.y = "keyboard", dx * PADDLE.speed, 
+        dy * PADDLE.speed
+    return 
+  end
+  if GS.mouse.x ~= 0 or GS.mouse.y ~= 0 then
+    GS.input, p.vel.x, p.vel.y = "mouse", GS.mouse.x / dt, GS.
+        mouse.y / dt
+    GS.mouse.x, GS.mouse.y = 0, 0
   end
 end
 
