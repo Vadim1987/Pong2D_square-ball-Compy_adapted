@@ -28,10 +28,8 @@ end
 
 function strategy.manual(pad, ball, dt)
   local is_down = love.keyboard.isDown
-  local dx = (is_down("right") and 1 or 0) - 
-    (is_down("left") and 1 or 0)
-  local dy = (is_down("down") and 1 or 0) - 
-    (is_down("up") and 1 or 0)
+  local dx = get_key_direction(is_down, "right", "left")
+  local dy = get_key_direction(is_down, "down", "up")
   pad.vel.x = PADDLE.speed * dx
   pad.vel.y = PADDLE.speed * dy
 end

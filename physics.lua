@@ -1,6 +1,5 @@
 -- physics.lua
 
-
 -- 0. TOOLS
 
 -- Projects object properties onto a specific axis ("x" or "y")
@@ -25,15 +24,21 @@ function get_state(ball, pad, axis)
 end
 
 function get_gaps(pos_a, size_a, pos_b, size_b)
-  return pos_b - (pos_a + size_a), (pos_b + size_b) - pos_a
+  local gap_front_fn = function()
+    return pos_b - (pos_a + size_a)
+  end
+  local gap_back_fn = function()
+    return (pos_b + size_b) - pos_a
+  end
+  return gap_front_fn, gap_back_fn
 end
 
-function select_gap(gap_front, gap_back, v_rel)
+function select_gap(gap_front_fn, gap_back_fn, v_rel)
   if 0 < v_rel then
-    return gap_front
+    return gap_front_fn()
   end
   if v_rel < 0 then
-    return gap_back
+    return gap_back_fn()
   end
   return nil
 end
@@ -73,8 +78,6 @@ end
 
 -- 4. RESOLUTION
 
--- Reflects ball velocity based on paddle impact
-
 function bounce(ball, pad, nx, ny)
   local b, p = ball.vel, pad.vel
   local rvx = b.x - p.x
@@ -84,15 +87,25 @@ function bounce(ball, pad, nx, ny)
   b.y = b.y - (2 * dot * ny)
 end
 
--- Compares impact times on X and Y axes to find the first coll
--- ision
+-- Chooses the earliest collision from a list of candidates
 
-function resolve_collision(t_x, n_x, t_y, n_y)
-  if t_y and (not t_x or t_y < t_x) then
-    return t_y, 0, n_y
+coll_x = { ny = 0 }
+coll_y = { nx = 0 }
+colls = {
+  coll_x,
+  coll_y
+}
+
+function resolve_collision(list)
+  local earliest = nil
+  for i = 1, #list do
+    local c = list[i]
+    if c.t and (not earliest or c.t < earliest.t) then
+      earliest = c
+    end
   end
-  if t_x then
-    return t_x, n_x, 0
+  if earliest then
+    return earliest.t, earliest.nx, earliest.ny
   end
 end
 
@@ -103,11 +116,13 @@ function detect(ball, pad, dt)
   if tx and not verify_overlap(ball, pad, "y", tx) then
     tx = nil
   end
-  local nx = tx and ((0 < vx) and -1 or 1) or 0
+  coll_x.t = tx
+  coll_x.nx = tx and ((0 < vx) and -1 or 1) or 0
   local ty, vy = calc_axis_impact(ball, pad, "y", dt)
   if ty and not verify_overlap(ball, pad, "x", ty) then
     ty = nil
   end
-  local ny = ty and ((0 < vy) and -1 or 1) or 0
-  return resolve_collision(tx, nx, ty, ny)
+  coll_y.t = ty
+  coll_y.ny = ty and ((0 < vy) and -1 or 1) or 0
+  return resolve_collision(colls)
 end

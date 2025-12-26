@@ -89,6 +89,34 @@ GS.paddles = {
 
 -- Helpers 
 
+function get_key_direction(key_check, key_pos, key_neg)
+  if key_check(key_pos) then
+    return 1
+  end
+  if key_check(key_neg) then
+    return -1
+  end
+  return 0
+end
+
+function clamp(value, min_val, max_val)
+  return math.max(min_val, math.min(value, max_val))
+end
+
+function center_text_x(text)
+  return (GAME.width - text:getWidth()) / 2
+end
+
+function copy_vector(dest, src)
+  dest.x = src.x
+  dest.y = src.y
+end
+
+function integrate_position(pos, vel, dt)
+  pos.x = pos.x + vel.x * dt
+  pos.y = pos.y + vel.y * dt
+end
+
 function update_scale()
   local w, h = gfx.getDimensions()
   local sx = w / GAME.width
@@ -98,23 +126,22 @@ end
 
 function sync_phys(now)
   local b = GS.ball
-  b.snapshot.x = b.pos.x
-  b.snapshot.y = b.pos.y
+  copy_vector(b.snapshot, b.pos)
   b.st = now
 end
 
 function move_ball_time(t_target)
   local b = GS.ball
   local dt = t_target - b.st
-  b.pos.x = b.snapshot.x + b.vel.x * dt
-  b.pos.y = b.snapshot.y + b.vel.y * dt
+  b.pos.x = b.snapshot.x
+  b.pos.y = b.snapshot.y
+  integrate_position(b.pos, b.vel, dt)
 end
 
 function reset_ball_pos(serve_vector)
   local b = GS.ball
   local serve = serve_vector or LAYOUT.serve_pos_player
-  b.pos.x = serve.x
-  b.pos.y = serve.y
+  copy_vector(b.pos, serve)
   b.vel.x, b.vel.y = 0, 0
 end
 
@@ -183,17 +210,14 @@ end
 -- Logic 
 
 function constrain(p)
-  p.pos.y = math.max(0, math.min(p.pos.y, LIMITS.y_max))
-  p.pos.x = math.max(
-    p.limits.min,
-    math.min(p.pos.x, p.limits.max)
-  )
+  p.pos.y = clamp(p.pos.y, 0, LIMITS.y_max)
+  p.pos.x = clamp(p.pos.x, p.limits.min, p.limits.max)
 end
 
 function process_input(dt)
   local p, k = GS.player, love.keyboard.isDown
-  local dy = (k("a") and 1 or 0) - (k("q") and 1 or 0)
-  local dx = (k("d") and 1 or 0) - (k("s") and 1 or 0)
+  local dy = get_key_direction(k, "a", "q")
+  local dx = get_key_direction(k, "d", "s")
   if dx ~= 0 or dy ~= 0 then
     GS.input, p.vel.x, p.vel.y = "keyboard", dx * PADDLE.speed, 
         dy * PADDLE.speed
@@ -211,8 +235,7 @@ function update_pads(dt)
   process_input(dt)
   GS.ai(GS.opponent, GS.ball, dt)
   for _, p in ipairs(GS.paddles) do
-    p.pos.x = p.pos.x + p.vel.x * dt
-    p.pos.y = p.pos.y + p.vel.y * dt
+    integrate_position(p.pos, p.vel, dt)
     constrain(p)
   end
 end
@@ -247,7 +270,7 @@ function check_bounds(now)
   local b = GS.ball
   local y_lim = GAME.height - b.size.y
   if b.pos.y < 0 or y_lim < b.pos.y then
-    b.pos.y = math.max(0, math.min(b.pos.y, y_lim))
+    b.pos.y = clamp(b.pos.y, 0, y_lim)
     b.vel.y = -b.vel.y
     sync_phys(now)
     sfx.knock()
@@ -374,10 +397,10 @@ function draw_info()
   end
   local ti = GS.assets.text_info
   local tm = GS.assets.text_mode
-  local xi = (GAME.width - ti:getWidth()) / 2
+  local xi = center_text_x(ti)
   local yi = GAME.height * 0.4 - ti:getHeight() / 2
   gfx.draw(ti, xi, yi)
-  local xm = (GAME.width - tm:getWidth()) / 2
+  local xm = center_text_x(tm)
   local ym = GAME.height * 0.6 - tm:getHeight() / 2
   gfx.draw(tm, xm, ym)
 end
