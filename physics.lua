@@ -24,21 +24,20 @@ function get_state(ball, pad, axis)
 end
 
 function get_gaps(pos_a, size_a, pos_b, size_b)
-  local gap_front_fn = function()
+  local gap_front = function()
     return pos_b - (pos_a + size_a)
   end
-  local gap_back_fn = function()
+  local gap_back = function()
     return (pos_b + size_b) - pos_a
   end
-  return gap_front_fn, gap_back_fn
+  return gap_front, gap_back
 end
 
-function select_gap(gap_front_fn, gap_back_fn, v_rel)
+function select_gap(gap_front, gap_back, v_rel)
   if 0 < v_rel then
-    return gap_front_fn()
-  end
-  if v_rel < 0 then
-    return gap_back_fn()
+    return gap_front()
+  elseif v_rel < 0 then
+    return gap_back()
   end
   return nil
 end
@@ -46,12 +45,11 @@ end
 -- 2. TIME CALCULATION
 
 function calc_time(dist, v, dt)
-  if not dist then
-    return nil
-  end
-  local t = dist / v
-  if t <= dt and -dt < t then
-    return math.max(0, t)
+  if dist then
+    local t = dist / v
+    if t <= dt and -dt < t then
+      return math.max(0, t)
+    end
   end
   return nil
 end
@@ -78,51 +76,57 @@ end
 
 -- 4. RESOLUTION
 
-function bounce(ball, pad, nx, ny)
+function bounce(ball, pad, n)
   local b, p = ball.vel, pad.vel
   local rvx = b.x - p.x
   local rvy = b.y - p.y
-  local dot = (rvx * nx) + (rvy * ny)
-  b.x = b.x - (2 * dot * nx)
-  b.y = b.y - (2 * dot * ny)
+  local dot = (rvx * n.x) + (rvy * n.y)
+  b.x = b.x - (2 * dot * n.x)
+  b.y = b.y - (2 * dot * n.y)
 end
 
 -- Chooses the earliest collision from a list of candidates
 
-coll_x = { ny = 0 }
-coll_y = { nx = 0 }
+coll = {
+  x = { n = { y = 0 } }
+  y = { n = { x = 0 } }
+}
+
 colls = {
-  coll_x,
-  coll_y
+  coll.x,
+  coll.y
 }
 
 function resolve_collision(list)
   local earliest = nil
-  for i = 1, #list do
-    local c = list[i]
+  for _, c in ipairs(list) do
     if c.t and (not earliest or c.t < earliest.t) then
       earliest = c
     end
   end
   if earliest then
-    return earliest.t, earliest.nx, earliest.ny
+    return earliest.t, earliest.n
   end
 end
 
 -- 5. COLLISION DETECTION
 
+OTHER = {
+  x = "y",
+  y = "x"
+}
+
+function collide_side(ball, pad, axis, dt)
+  local t, v = calc_axis_impact(ball, pad, axis, dt)
+  if t and not verify_overlap(ball, pad, OTHER[axis], t) then
+    t = nil
+  end
+  coll[axis].t = t
+  coll[axis].n[axis] = tx and ((0 < vx) and -1 or 1) or 0
+end
+
 function detect(ball, pad, dt)
-  local tx, vx = calc_axis_impact(ball, pad, "x", dt)
-  if tx and not verify_overlap(ball, pad, "y", tx) then
-    tx = nil
-  end
-  coll_x.t = tx
-  coll_x.nx = tx and ((0 < vx) and -1 or 1) or 0
-  local ty, vy = calc_axis_impact(ball, pad, "y", dt)
-  if ty and not verify_overlap(ball, pad, "x", ty) then
-    ty = nil
-  end
-  coll_y.t = ty
-  coll_y.ny = ty and ((0 < vy) and -1 or 1) or 0
+  collide_side(ball, pad, "x", dt)
+  collide_side(ball, pad, "y", dt)
   return resolve_collision(colls)
 end

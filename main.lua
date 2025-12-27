@@ -243,25 +243,24 @@ end
 -- Physics Loop 
 
 function find_collision(dt)
-  local best = { time = nil }
+  local first = { time = nil }
   for _, p in ipairs(GS.paddles) do
-    local t, nx, ny = detect(GS.ball, p, dt)
-    if t and (not best.time or t < best.time) then
-      best = {
+    local t, n = detect(GS.ball, p, dt)
+    if t and (not first.time or t < first.time) then
+      first = {
         time = t,
-        nx = nx,
-        ny = ny,
+        n = n,
         paddle = p
       }
     end
   end
-  return best
+  return first
 end
 
 function process_collision(col, t_sim)
   local t_imp = t_sim + col.time
   move_ball_time(t_imp)
-  bounce(GS.ball, col.paddle, col.nx, col.ny)
+  bounce(GS.ball, col.paddle, col.n.x, col.n.y)
   sfx.shot()
   sync_phys(t_imp)
 end
