@@ -88,7 +88,7 @@ end
 -- Chooses the earliest collision from a list of candidates
 
 coll = {
-  x = { n = { y = 0 } }
+  x = { n = { y = 0 } },
   y = { n = { x = 0 } }
 }
 
