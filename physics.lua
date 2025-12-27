@@ -97,6 +97,8 @@ colls = {
   coll.y
 }
 
+-- physics.lua
+
 function resolve_collision(list)
   local earliest = nil
   for _, c in ipairs(list) do
@@ -105,7 +107,10 @@ function resolve_collision(list)
     end
   end
   if earliest then
-    return earliest.t, earliest.n
+    return earliest.t, {
+      x = earliest.n.x,
+      y = earliest.n.y
+    }
   end
 end
 
@@ -122,7 +127,7 @@ function collide_side(ball, pad, axis, dt)
     t = nil
   end
   coll[axis].t = t
-  coll[axis].n[axis] = tx and ((0 < v[axis]) and -1 or 1) or 0
+  coll[axis].n[axis] = t and ((0 < v) and -1 or 1) or 0
 end
 
 function detect(ball, pad, dt)
