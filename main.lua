@@ -260,7 +260,7 @@ end
 function process_collision(col, t_sim)
   local t_imp = t_sim + col.time
   move_ball_time(t_imp)
-  bounce(GS.ball, col.paddle, col.n.x, col.n.y)
+  bounce(GS.ball, col.paddle, col.n)
   sfx.shot()
   sync_phys(t_imp)
 end

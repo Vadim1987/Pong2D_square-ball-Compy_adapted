@@ -122,7 +122,7 @@ function collide_side(ball, pad, axis, dt)
     t = nil
   end
   coll[axis].t = t
-  coll[axis].n[axis] = tx and ((0 < vx) and -1 or 1) or 0
+  coll[axis].n[axis] = tx and ((0 < v[axis]) and -1 or 1) or 0
 end
 
 function detect(ball, pad, dt)
