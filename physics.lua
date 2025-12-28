@@ -81,8 +81,12 @@ function bounce(ball, pad, n)
   local rvx = b.x - p.x
   local rvy = b.y - p.y
   local dot = (rvx * n.x) + (rvy * n.y)
-  b.x = b.x - (2 * dot * n.x)
-  b.y = b.y - (2 * dot * n.y)
+  local vex = b.x - (2 * dot * n.x)
+  local vey = b.y - (2 * dot * n.y)
+  local k = GAME.elasticity
+  local ik = 1 - k
+  b.x = (vex * k) + (p.x * ik)
+  b.y = (vey * k) + (p.y * ik)
 end
 
 -- Chooses the earliest collision from a list of candidates
