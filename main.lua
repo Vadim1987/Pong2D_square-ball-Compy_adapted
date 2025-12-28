@@ -243,15 +243,16 @@ end
 -- Physics Loop 
 
 function find_collision(dt)
-  local first = { time = nil }
+  local first = {
+    time = nil,
+    n = { }
+  }
   for _, p in ipairs(GS.paddles) do
     local t, n = detect(GS.ball, p, dt)
     if t and (not first.time or t < first.time) then
-      first = {
-        time = t,
-        n = n,
-        paddle = p
-      }
+      first.time = t
+      first.paddle = p
+      copy_vector(first.n, n)
     end
   end
   return first

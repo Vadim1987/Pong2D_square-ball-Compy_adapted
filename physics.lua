@@ -97,8 +97,6 @@ colls = {
   coll.y
 }
 
--- physics.lua
-
 function resolve_collision(list)
   local earliest = nil
   for _, c in ipairs(list) do
@@ -107,10 +105,7 @@ function resolve_collision(list)
     end
   end
   if earliest then
-    return earliest.t, {
-      x = earliest.n.x,
-      y = earliest.n.y
-    }
+    return earliest.t, earliest.n
   end
 end
 
