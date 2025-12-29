@@ -13,7 +13,7 @@ GAME = {
   score_win = 10,
   score_off_y = 20,
   ai_deadzone = 4,
-  elasticity = 0.8
+  elasticity = 0.5
 }
 
 GRID = {
