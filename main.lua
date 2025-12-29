@@ -74,7 +74,7 @@ GS.ball = {
     x = 0,
     y = 0
   },
-  size = BALL.size,
+  radius = BALL.radius,
   snapshot = {
     x = 0,
     y = 0
@@ -268,9 +268,14 @@ end
 
 function check_bounds(now)
   local b = GS.ball
-  local y_lim = GAME.height - b.size.y
-  if b.pos.y < 0 or y_lim < b.pos.y then
-    b.pos.y = clamp(b.pos.y, 0, y_lim)
+  if b.pos.y - b.radius < 0 then
+    b.pos.y = b.radius
+    b.vel.y = -b.vel.y
+    sync_phys(now)
+    sfx.knock()
+  end
+  if GAME.height < b.pos.y + b.radius then
+    b.pos.y = GAME.height - b.radius
     b.vel.y = -b.vel.y
     sync_phys(now)
     sfx.knock()
@@ -298,12 +303,12 @@ function process_win(win, now)
 end
 
 function check_score(now)
-  local x = GS.ball.pos.x
+  local x, r = GS.ball.pos.x, GS.ball.radius
   local win = nil
-  if x < 0 then
+  if x + r < 0 then
     win = "opponent"
   end
-  if GAME.width < x then
+  if GAME.width < x - r then
     win = "player"
   end
   if win then
@@ -379,7 +384,7 @@ function draw_objs()
     gfx.rectangle("fill", p.pos.x, p.pos.y, p.size.x, p.size.y)
   end
   local b = GS.ball
-  gfx.rectangle("fill", b.pos.x, b.pos.y, b.size.x, b.size.y)
+  gfx.circle("fill", b.pos.x, b.pos.y, b.radius)
 end
 
 function draw_scores()

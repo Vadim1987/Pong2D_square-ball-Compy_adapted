@@ -7,7 +7,7 @@ strategy = { }
 
 function strategy.hard(pad, ball, dt)
   local pad_cy = pad.pos.y + pad.size.y / 2
-  local ball_cy = ball.pos.y + ball.size.y / 2
+  local ball_cy = ball.pos.y
   local diff = ball_cy - pad_cy
   if math.abs(diff) < GAME.ai_deadzone then
     pad.vel.y = 0

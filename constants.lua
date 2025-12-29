@@ -31,10 +31,7 @@ PADDLE = {
   off_x = 0
 }
 
-BALL = { size = {
-  x = 10,
-  y = 10
-} }
+BALL = { radius = 10 }
 
 -- Dynamic geometry
 
@@ -42,12 +39,12 @@ LAYOUT = {
   pad_start_y = (GAME.height - PADDLE.size.y) / 2,
   serve_pos_player = {
     x = GAME.width / 6,
-    y = (GAME.height - BALL.size.y) / 2
+    y = GAME.height / 2
   }
 }
 
 LAYOUT.serve_pos_opp = {
-  x = (GAME.width - LAYOUT.serve_pos_player.x) - BALL.size.x,
+  x = (GAME.width - LAYOUT.serve_pos_player.x),
   y = LAYOUT.serve_pos_player.y
 }
 
