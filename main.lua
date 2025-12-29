@@ -366,6 +366,7 @@ function actions.play.r()
 end
 
 actions.over.space = actions.play.r
+actions.over.r = actions.play.r
 
 for k, v in pairs(actions) do
   v.escape = love.event.quit
@@ -396,13 +397,15 @@ function draw_info()
     return 
   end
   local ti = GS.assets.text_info
-  local tm = GS.assets.text_mode
   local xi = center_text_x(ti)
   local yi = GAME.height * 0.4 - ti:getHeight() / 2
   gfx.draw(ti, xi, yi)
-  local xm = center_text_x(tm)
-  local ym = GAME.height * 0.6 - tm:getHeight() / 2
-  gfx.draw(tm, xm, ym)
+  if GS.mode == "start" then
+    local tm = GS.assets.text_mode
+    local xm = center_text_x(tm)
+    local ym = GAME.height * 0.6 - tm:getHeight() / 2
+    gfx.draw(tm, xm, ym)
+  end
 end
 
 function draw_ui()
