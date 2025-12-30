@@ -33,21 +33,14 @@ function get_corners(pad)
   return CORNER_BUFF
 end
 
--- Converts vector to Unit Vector (Length = 1)
-
-function normalize(x, y)
-  local l = math.sqrt(x * x + y * y)
-  return x / l, y / l
-end
-
 -- Calculates wall distance 
 
-function get_dist(ball, pad, axis, v)
+function get_dist(ball, pad, axis, dv)
   local pos_b = ball.pos[axis]
   local pos_p = pad.pos[axis]
   local size_p = pad.size[axis]
-  local s = (0 < v) and -1 or 1
-  local edge = (0 < v) and pos_p or (pos_p + size_p)
+  local s = (0 < dv) and -1 or 1
+  local edge = (0 < dv) and pos_p or (pos_p + size_p)
   return (edge + s * ball.radius) - pos_b
 end
 
@@ -146,9 +139,9 @@ end
 -- 4. COLLISION DETECTION
 
 function collide_side(ball, pad, axis, dt)
-  local v = ball.vel[axis] - pad.vel[axis]
-  local dist = get_dist(ball, pad, axis, v)
-  local t = calc_time(dist, v, dt)
+  local dv = ball.vel[axis] - pad.vel[axis]
+  local dist = get_dist(ball, pad, axis, dv)
+  local t = calc_time(dist, dv, dt)
   if t then
     check_center(ball, pad, axis, t)
   end
@@ -157,7 +150,7 @@ end
 function add_corner_hit(t, nx, ny)
   if not coll.c.t or t < coll.c.t then
     coll.c.t = t
-    coll.c.n.x, coll.c.n.y = normalize(nx, ny)
+    coll.c.n.x, coll.c.n.y = nx, ny
   end
 end
 
@@ -168,7 +161,12 @@ function collide_corner(ball, pad, corner, dt)
   if t and 0 <= t and t <= dt then
     local bx = ball.pos.x + V_REL.x * t
     local by = ball.pos.y + V_REL.y * t
-    add_corner_hit(t, bx - corner.x, by - corner.y)
+    local inv_r = 1 / ball.radius
+    add_corner_hit(
+      t,
+      (bx - corner.x) * inv_r,
+      (by - corner.y) * inv_r
+    )
   end
 end
 
