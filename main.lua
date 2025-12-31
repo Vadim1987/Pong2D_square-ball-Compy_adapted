@@ -133,8 +133,7 @@ end
 function move_ball_time(t_target)
   local b = GS.ball
   local dt = t_target - b.st
-  b.pos.x = b.snapshot.x
-  b.pos.y = b.snapshot.y
+  copy_vector(b.pos, b.snapshot)
   integrate_position(b.pos, b.vel, dt)
 end
 
@@ -242,7 +241,7 @@ end
 
 -- Physics Loop 
 
-function find_collision(dt)
+function select_hit_paddle(dt)
   local first = {
     time = nil,
     n = { }
@@ -319,7 +318,7 @@ end
 function update_ball(dt, now)
   local t_sim = now - dt
   sync_phys(t_sim)
-  local col = find_collision(dt)
+  local col = select_hit_paddle(dt) 
   if col.time then
     process_collision(col, t_sim)
   end
@@ -426,9 +425,8 @@ function love.update(dt)
     return 
   end
   local now = timer.getTime()
-  local sdt = dt * GAME.speed_scale
-  update_pads(sdt)
-  update_ball(sdt, now)
+  update_pads(dt)
+  update_ball(dt, now)
 end
 
 function love.draw()

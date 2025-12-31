@@ -120,20 +120,21 @@ coll.c.n = {
   y = 0
 }
 
-colls = {
-  coll.x,
-  coll.y,
-  coll.c
-}
-
-function resolve_collision(candidates)
+function select_earliest_impact()
   local best = nil
-  for _, c in ipairs(candidates) do
-    if c.t and (not best or c.t < best.t) then
-      best = c
-    end
+  if coll.x.t then
+    best = coll.x
   end
-  return best and best.t, best and best.n
+  if coll.y.t and (not best or coll.y.t < best.t) then
+    best = coll.y
+  end
+  if coll.c.t and (not best or coll.c.t < best.t) then
+    best = coll.c
+  end
+  if best then
+    return best.t, best.n
+  end
+  return nil, nil
 end
 
 -- 4. COLLISION DETECTION
@@ -179,5 +180,5 @@ function detect(ball, pad, dt)
   for _, corner in ipairs(get_corners(pad)) do
     collide_corner(ball, pad, corner, dt)
   end
-  return resolve_collision(colls)
+  return select_earliest_impact()
 end

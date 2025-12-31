@@ -27,7 +27,7 @@ PADDLE = {
     x = 10,
     y = 60
   },
-  speed = 180,
+  speed = 180 * GAME.speed_scale,
   off_x = 0
 }
 
