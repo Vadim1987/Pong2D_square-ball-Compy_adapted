@@ -3,28 +3,36 @@
 
 strategy = { }
 
--- 1. Hard AI 
+-- Returns direction (-1, 0, 1) based on target difference.
 
-function strategy.hard(pad, ball, dt)
-  local pad_cy = pad.pos.y + pad.size.y / 2
-  local ball_cy = ball.pos.y
-  local diff = ball_cy - pad_cy
-  if math.abs(diff) < GAME.ai_deadzone then
-    pad.vel.y = 0
-  else
-    local dir = (0 < diff) and 1 or -1
-    pad.vel.y = PADDLE.speed * dir
+function get_dir(current, target, deadzone)
+  local diff = target - current
+  if math.abs(diff) < deadzone then
+    return 0
   end
+  return (0 < diff) and 1 or -1
 end
 
--- 2. Easy AI (Slower reaction)
+-- 1. AI Strategy 
 
-function strategy.easy(pad, ball, dt)
-  strategy.hard(pad, ball, dt)
-  pad.vel.y = pad.vel.y * 0.6
+-- Core AI: Manages Attack/Defend states.
+
+function strategy.ai(pad, ball, dt)
+  local bx, vx = ball.pos.x, ball.vel.x
+  local in_zone = (AI.zone_x < bx) and (AI.retreat_v < vx)
+  local attack = (vx == 0 and AI.mid_field < bx) or in_zone
+  local tx = attack and AI.attack_x or AI.wall_x
+  local noise = love.math.noise(
+    love.timer.getTime() * AI.noise_freq
+  ) - 0.5
+  local ty = attack and (ball.pos.y + noise * AI.noise_range)
+       or ball.pos.y
+  local center_y = pad.pos.y + PADDLE.half_y
+  pad.vel.x = get_dir(pad.pos.x, tx, AI.dead_x) * pad.speed
+  pad.vel.y = get_dir(center_y, ty, AI.dead_y) * pad.speed
 end
 
--- 3. Manual AI
+-- 2. Manual AI
 
 function strategy.manual(pad, ball, dt)
   local is_down = love.keyboard.isDown

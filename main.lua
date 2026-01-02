@@ -35,7 +35,7 @@ GS.mouse = {
   x = 0,
   y = 0
 }
-GS.ai = strategy.hard
+GS.ai = strategy.ai
 
 -- Entities (Unified Vectors: pos, vel, size)
 
@@ -49,7 +49,8 @@ GS.player = {
     y = 0
   },
   size = PADDLE.size,
-  limits = LIMITS.player
+  limits = LIMITS.player,
+  speed = PADDLE.speed
 }
 
 GS.opponent = {
@@ -62,7 +63,8 @@ GS.opponent = {
     y = 0
   },
   size = PADDLE.size,
-  limits = LIMITS.opp
+  limits = LIMITS.opp,
+  speed = AI.speed_hard
 }
 
 GS.ball = {
@@ -145,13 +147,13 @@ function reset_ball_pos(serve_vector)
 end
 
 function get_strat_name()
-  if GS.ai == strategy.hard then
-    return "1 Player (hard)"
+  if GS.input == "keyboard" then
+    return "2 Players (Manual)"
   end
-  if GS.ai == strategy.easy then
-    return "1 Player (easy)"
+  if GS.opponent.speed == AI.speed_easy then
+    return "1 Player (Easy)"
   end
-  return "2 Players (keyboard)"
+  return "1 Player (Hard)"
 end
 
 function update_ui()
@@ -165,7 +167,11 @@ function reset_round(now)
   GS.player.pos.y = LAYOUT.pad_start_y
   GS.opponent.pos.x = LIMITS.opp.max
   GS.opponent.pos.y = LAYOUT.pad_start_y
-  reset_ball_pos(LAYOUT.serve_pos_player)
+  local is_player = (GS.score.player + GS.score.opponent) % 2
+       == 0
+  local serve = is_player and LAYOUT.serve_pos_player
+       or LAYOUT.serve_pos_opp
+  reset_ball_pos(serve)
   sync_phys(now)
 end
 
@@ -218,8 +224,8 @@ function process_input(dt)
   local dy = get_key_direction(k, "a", "q")
   local dx = get_key_direction(k, "d", "s")
   if dx ~= 0 or dy ~= 0 then
-    GS.input, p.vel.x, p.vel.y = "keyboard", dx * PADDLE.speed, 
-        dy * PADDLE.speed
+    GS.input, p.vel.x, p.vel.y = "keyboard", dx * p.speed, dy * 
+        p.speed
     return 
   end
   if GS.mouse.x ~= 0 or GS.mouse.y ~= 0 then
@@ -342,19 +348,27 @@ function actions.start.space()
   sfx.beep()
 end
 
-actions.start["e"] = function()
-  local is_h = (GS.ai == strategy.hard)
-  GS.ai = is_h and strategy.easy or strategy.hard
+actions.start["1"] = function()
+  GS.ai = strategy.ai
   GS.input = "mouse"
+  local is_hard = (GS.opponent.speed == AI.speed_hard)
+  GS.opponent.speed = is_hard and AI.speed_easy or AI.speed_hard
   update_ui()
   sfx.toggle()
 end
 
-actions.start["1"] = actions.start["e"]
-
 actions.start["2"] = function()
   GS.ai = strategy.manual
+  GS.opponent.speed = PADDLE.speed
   GS.input = "keyboard"
+  update_ui()
+  sfx.toggle()
+end
+
+function actions.start.e()
+  GS.ai = strategy.ai
+  GS.opponent.speed = AI.speed_easy
+  GS.input = "mouse"
   update_ui()
   sfx.toggle()
 end
